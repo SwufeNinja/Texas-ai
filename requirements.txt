@@ -1,0 +1,6 @@
+treys
+rich
+openai
+colorama
+streamlit
+python-dotenv
