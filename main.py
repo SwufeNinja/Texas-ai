@@ -227,32 +227,17 @@ def main():
             
         # SHOWDOWN
         print("\n--- SHOWDOWN ---")
-        # Ensure all community cards are dealt if we reached showdown with all-in players?
-        # If players_in_hand() is true but we skipped rounds because everyone was all-in?
-        # My logic above: run_betting_round returns early if no ACTIVE players. 
-        # But we still dealt cards.
-        # So if P1, P2 all in pre-flop:
-        # 1. Pre-flop round ends.
-        # 2. players_in_hand() is True. Deal 3.
-        # 3. run_betting_round -> returns imm.
-        # 4. Deal 1.
-        # 5. run_betting_round -> returns imm.
-        # 6. Deal 1.
-        # 7. run_betting_round -> returns imm.
-        # 8. Showdown.
-        # Logic is correct.
-        
         cli.render_state(game, human) 
-        winners = game.determine_winners()
-        
+        game.settle_hand()
+        winners = game.winners
+        payouts = game.payouts
+
         if winners:
             winner_names = [w.name for w in winners]
             print(f"[bold green]Winner(s): {', '.join(winner_names)}[/bold green]")
-            # Distribute pot
-            share = game.pot // len(winners)
             for w in winners:
-                w.chips += share
-                print(f"{w.name} wins {share} chips!")
+                gain = payouts.get(w.name, 0)
+                print(f"{w.name} wins {gain} chips!")
         else:
             print("No winners? (Everyone folded maybe)")
             

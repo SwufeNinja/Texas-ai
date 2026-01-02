@@ -5,7 +5,7 @@ from .llm_client import LLMClient
 from game.equity import EquityCalculator
 
 class PokerAgent:
-    def __init__(self, name: str, profile: str = "A professional poker player", client: LLMClient = None):
+    def __init__(self, name: str, profile: str = "A professional poker player", client: LLMClient = None): # type: ignore
         self.name = name
         self.profile = profile
         self.client = client if client else LLMClient()

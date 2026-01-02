@@ -23,11 +23,12 @@ if "game" not in st.session_state:
     st.session_state.human_name = "Human" # Track which is human
     
     # Add AI
-    ai_names = ["Alice", "Bob", "Charlie"]
+    ai_names = ["Alice", "Bob", "Charlie", "Diana"]
     profiles = [
-        "You are a tight-aggressive player. You only play strong hands but when you do, you bet and raise confidently. Consider pot odds before calling.",
+        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability.",
         "You are a loose-aggressive player. You like to play many hands and apply pressure with bets. You occasionally bluff but also value bet strong hands.",
-        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability."
+        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability.",
+        "You are a tight-aggressive player. You only play strong hands but when you do, you bet and raise confidently. Consider pot odds before calling."
     ]
     st.session_state.agents = {}
     for i, name in enumerate(ai_names):
@@ -35,13 +36,29 @@ if "game" not in st.session_state:
         st.session_state.game.add_player(p)
         st.session_state.agents[name] = PokerAgent(name, profile=profiles[i])
         
-    st.session_state.game.start_hand()
+    st.session_state.game_started = False  # Wait for Start Game button
     st.session_state.hand_recorded = False
+    st.session_state.winning_payouts = {}
+    st.session_state.board_reveal_count = 0  # how many board cards are shown for animation
+
+# Initialize thinking message state
+if "thinking_message" not in st.session_state:
+    st.session_state.thinking_message = ""
+if "board_reveal_count" not in st.session_state:
+    st.session_state.board_reveal_count = 0
 
 game = st.session_state.game
 
 # Sidebar
 st.sidebar.title("🎰 Controls")
+
+# Start Game button - only show if game hasn't started
+if not st.session_state.get('game_started', False):
+    if st.sidebar.button("🎮 Start Game", type="primary"):
+        st.session_state.game.start_hand()
+        st.session_state.game_started = True
+        st.rerun()
+
 if st.sidebar.button("🔄 Restart Game"):
     # Reset game logic
     st.session_state.game = TexasHoldemGame()
@@ -51,11 +68,12 @@ if st.sidebar.button("🔄 Restart Game"):
     st.session_state.human_name = "Human"
     
     # Re-add AI players with profiles (must match initial setup)
-    ai_names = ["Alice", "Bob", "Charlie"]
+    ai_names = ["Alice", "Bob", "Charlie", "Diana"]
     profiles = [
-        "You are a tight-aggressive player. You only play strong hands but when you do, you bet and raise confidently. Consider pot odds before calling.",
+        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability.",
         "You are a loose-aggressive player. You like to play many hands and apply pressure with bets. You occasionally bluff but also value bet strong hands.",
-        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability."
+        "You are a balanced player who calculates pot odds and equity. You make mathematically sound decisions based on your win probability.",
+        "You are a tight-aggressive player. You only play strong hands but when you do, you bet and raise confidently. Consider pot odds before calling."
     ]
     st.session_state.agents = {}
     for i, name in enumerate(ai_names):
@@ -63,8 +81,10 @@ if st.sidebar.button("🔄 Restart Game"):
         st.session_state.game.add_player(p)
         st.session_state.agents[name] = PokerAgent(name, profile=profiles[i])
     
-    st.session_state.game.start_hand()
+    st.session_state.game_started = False  # Go back to waiting state
     st.session_state.hand_recorded = False
+    st.session_state.thinking_message = ""
+    st.session_state.board_reveal_count = 0
     st.rerun()
 
 # === LUXURY GOLD-BLACK THEME CSS ===
@@ -77,10 +97,10 @@ st.markdown("""
     
     /* Compact Main Container */
     .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 0.75rem !important;
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.25rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     
@@ -103,11 +123,11 @@ st.markdown("""
     
     /* Poker Table */
     .poker-table {
-        width: 860px;
-        height: 360px;
+        width: 750px;
+        height: 280px;
         background: radial-gradient(ellipse at center, #0d4a2e 0%, #073d1f 100%);
-        border-radius: 180px;
-        border: 8px solid #d4af37;
+        border-radius: 140px;
+        border: 6px solid #d4af37;
         box-shadow: 
             0 0 30px rgba(0, 0, 0, 0.5),
             inset 0 0 60px rgba(0, 0, 0, 0.5);
@@ -118,8 +138,8 @@ st.markdown("""
     /* Pot Display - Now Floating inside Table */
     .pot-display {
         position: absolute;
-        top: 18%;
-        left: 50%;
+        top: 20%;
+        left: 30%;
         transform: translate(-50%, -50%);
         background: rgba(0, 0, 0, 0.4);
         border: 1px solid rgba(212, 175, 55, 0.5);
@@ -134,21 +154,38 @@ st.markdown("""
         color: #ffd700;
         font-family: 'Georgia', serif;
         margin: 0;
-        font-size: 1.1em;
+        font-size: 2em;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
     }
     
     .pot-display p {
         color: #ddd;
         margin: 0;
-        font-size: 0.7em;
+        font-size: 1.1em;
         letter-spacing: 1px;
+    }
+    
+    /* Thinking Indicator - Floating inside Table */
+    .thinking-indicator {
+        position: absolute;
+        top: 20%;
+        left: 70%;
+        transform: translate(-50%, -50%);
+        color: #ffd700;
+        font-family: 'Georgia', serif;
+        font-size: 1em;
+        font-weight: bold;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        text-align: center;
+        z-index: 15;
+        min-width: 200px;
+        animation: pulse-gold 2s infinite;
     }
     
     /* Community Cards - Now Floating inside Table */
     .community-cards {
         position: absolute;
-        top: 58%;
+        top: 65%;
         left: 50%;
         transform: translate(-50%, -50%);
         display: flex;
@@ -163,16 +200,18 @@ st.markdown("""
     .player-seat {
         background: linear-gradient(145deg, #1a1a2e, #16213e);
         border: 1px solid #d4af37;
-        border-radius: 12px; /* More rectangular */
-        padding: 5px 8px; /* More compact */
+        border-radius: 10px;
+        padding: 4px 6px;
         min-width: 160px;
         max-width: 160px;
-        height: 200px;
+        height: auto;
+        min-height: 200px;
         text-align: center;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
         transition: all 0.3s ease;
-        margin: 5px auto; /* Centered horizontally */
-        z-index: 20; /* Above table if overlaps */
+        margin: 2px auto;
+        z-index: 20;
+        overflow: visible;
     }
 
     /* Individual Seat Tuning */
@@ -305,15 +344,25 @@ st.markdown("""
 # === MAIN UI ===
 # Title removed to save space
 
+# Check if game has started - BEFORE rendering anything
+if not st.session_state.get('game_started', False):
+    st.markdown('''
+    <div style="text-align: center; padding: 100px 40px; color: #d4af37; font-size: 2em;">
+        👈 Click <b>"🎮 Start Game"</b> in the sidebar to begin!
+    </div>
+    ''', unsafe_allow_html=True)
+    st.stop()  # Stop rendering everything else
 
-# Stage display
-st.markdown(f'<div style="text-align: center; margin-bottom: 5px;"><span class="stage-badge">{game.stage.name}</span></div>', unsafe_allow_html=True)
+# Stage display - compact for single screen view
+st.markdown(f'<div style="text-align: left; font-size: 2em; padding: 2px 15px; margin-bottom: 2px;"><span class="stage-badge">{game.stage.name}</span></div>', unsafe_allow_html=True)
 
 # === HELPER FUNCTIONS ===
 
 def get_player_position(index, total):
     """Map player index to position around table"""
-    if total == 4:
+    if total == 5:
+        return ["bottom", "left", "top", "top", "right"][index]
+    elif total == 4:
         return ["bottom", "left", "top", "right"][index]
     elif total == 3:
         return ["bottom", "left", "right"][index]
@@ -337,8 +386,8 @@ def render_player_card(player, index, game, pos):
     if is_human:
         classes.append("human")
     
-    # Determine card display
-    show_cards = is_human or game.stage == GameStage.SHOWDOWN or player.status == PlayerState.ALL_IN
+    # Determine card display: only show at showdown/end or for human
+    show_cards = is_human or game.stage in (GameStage.SHOWDOWN, GameStage.GAME_OVER)
     
     if player.hand:
         cards_html = cards_to_html([str(c) for c in player.hand], hidden=not show_cards)
@@ -356,15 +405,13 @@ def render_player_card(player, index, game, pos):
     elif player.status == PlayerState.OUT:
         status_icon += "💀"
     
-    player_html = f'''
-    <div class="{' '.join(classes)}">
+    player_html = f'''<div class="{' '.join(classes)}">
         <div class="player-name">{status_icon}{player.name}</div>
         <div class="player-chips">💰 ${player.chips}</div>
         <div class="player-bet">Bet: ${player.current_bet}</div>
         <div class="player-cards">{cards_html}</div>
         <div class="player-status">{player.status.value}</div>
-    </div>
-    '''
+    </div>'''
     st.markdown(player_html, unsafe_allow_html=True)
 
 # === POKER TABLE LAYOUT ===
@@ -373,13 +420,24 @@ def render_player_card(player, index, game, pos):
 # Container wrapper removed
 
 
-# Top player area
-top_col1, top_col2, top_col3 = st.columns([1, 2, 1])
-with top_col2:
-    for i, p in enumerate(game.players):
-        pos = get_player_position(i, len(game.players))
-        if pos == "top":
-            render_player_card(p, i, game, pos)
+# Top player area - collect top players first
+top_players = [(i, p) for i, p in enumerate(game.players) if get_player_position(i, len(game.players)) == "top"]
+
+if len(top_players) == 1:
+    # Single top player - centered
+    top_col1, top_col2, top_col3 = st.columns([1, 2, 1])
+    with top_col2:
+        i, p = top_players[0]
+        render_player_card(p, i, game, "top")
+elif len(top_players) >= 2:
+    # Multiple top players - side by side
+    top_col1, top_col2, top_col3, top_col4 = st.columns([1, 1, 1, 1])
+    with top_col2:
+        i, p = top_players[0]
+        render_player_card(p, i, game, "top")
+    with top_col3:
+        i, p = top_players[1]
+        render_player_card(p, i, game, "top")
 
 # Middle row: Left - Table - Right
 left_col, center_col, right_col = st.columns([1, 3, 1])
@@ -399,21 +457,53 @@ with center_col:
     <p>Current Bet: ${game.current_bet}</p>
 </div>'''
     
-    # 2. Prepare Community Cards HTML
-    if game.board:
-        board_cards_html = cards_to_html([str(c) for c in game.board])
+    # 2. Prepare Thinking Indicator HTML
+    thinking_html = f'''<div class="thinking-indicator">
+    {st.session_state.thinking_message}
+</div>'''
+    
+    # 3. Prepare Community Cards HTML with incremental reveal
+    stage_target = 0
+    if game.stage == GameStage.FLOP:
+        stage_target = 3
+    elif game.stage == GameStage.TURN:
+        stage_target = 4
+    elif game.stage in (GameStage.RIVER, GameStage.SHOWDOWN, GameStage.GAME_OVER):
+        stage_target = 5
+    stage_target = min(stage_target, len(game.board))
+
+    # Clamp stored counter to current board/stage
+    stored = st.session_state.get("board_reveal_count", 0)
+    stored = min(stored, stage_target, len(game.board))
+    st.session_state.board_reveal_count = stored
+
+    visible_count = stored
+    
+    if game.board and visible_count > 0:
+        board_cards_html = cards_to_html([str(c) for c in game.board[:visible_count]])
         community_html = f'<div class="community-cards">{board_cards_html}</div>'
     else:
-        community_html = '<div class="community-cards" style="color: #888; font-style: italic;">Waiting for flop...</div>'
+        community_html = '<div class="community-cards" style="color: #888; font-size: 2.0em;font-style: italic;">Waiting for flop...</div>'
     
-    # 3. Combine into Single Parent Helper
-    # This ensures .pot-display and .community-cards are children of .poker-table
+    # 4. Combine into Single Parent Helper
+    # This ensures .pot-display, .thinking-indicator, and .community-cards are children of .poker-table
     table_html = f'''<div class="poker-table">
     {pot_html}
+    {thinking_html}
     {community_html}
 </div>'''
     
     st.markdown(table_html, unsafe_allow_html=True)
+
+    # If more cards should be revealed, schedule next reveal after rendering
+    # Set a flag to prevent AI processing during card reveal animation
+    if stage_target > visible_count and len(game.board) > visible_count:
+        st.session_state.card_reveal_in_progress = True
+        time.sleep(0.4)
+        st.session_state.board_reveal_count = visible_count + 1
+        st.rerun()
+    else:
+        st.session_state.card_reveal_in_progress = False
 
 with right_col:
     for i, p in enumerate(game.players):
@@ -438,147 +528,137 @@ with bot_col2:
 
 # === GAME LOGIC / ACTIONS ===
 if game.stage == GameStage.GAME_OVER:
-    winners = game.determine_winners()
-    
-    # Record Memory and Distribute Pot (Once per hand)
-    if not st.session_state.get("hand_recorded", False):
+    winners = game.winners or game.determine_winners()
+    payouts = game.payouts if game.payouts else st.session_state.get('winning_payouts', {})
+
+    # Record Memory once per hand (engine already paid out)
+    if not st.session_state.get('hand_recorded', False):
+        st.session_state.winning_payouts = payouts
         if winners:
-            # Distribute pot to winners - only once!
-            share = game.pot // len(winners)
-            
-            for w in winners:
-                w.chips += share
-            st.session_state.winning_share = share  # Store for display
-            
-            w_names = ", ".join([w.name for w in winners])
-            summary = f"Hand ended. Winners: {w_names}. Pot: {game.pot}."
+            w_names = ', '.join([w.name for w in winners])
+            total_paid = sum(payouts.values()) if payouts else 0
+            summary = f"Hand ended. Winners: {w_names}. Paid out: ${total_paid}."
             for agent in st.session_state.agents.values():
                 agent.add_memory(summary)
         st.session_state.hand_recorded = True
 
     if winners:
         st.balloons()
-        w_names = ", ".join([w.name for w in winners])
-        share = st.session_state.get("winning_share", game.pot // len(winners))
-        st.markdown(f'<div class="winner-banner">🏆 {w_names} wins ${share}! 🏆</div>', unsafe_allow_html=True)
-    
-    # Reduced spacing
+        if payouts:
+            parts = [f"{w.name} +${payouts.get(w.name, 0)}" for w in winners]
+            banner_text = ', '.join(parts)
+        else:
+            banner_text = ', '.join([w.name for w in winners])
+        st.markdown(f'<div class="winner-banner">{banner_text}</div>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("🃏 Deal Next Hand"):
-            # Rotate dealer position
+        if st.button('🃏 Deal Next Hand'):
             game.dealer_index = (game.dealer_index + 1) % len(game.players)
-            # Skip OUT players for dealer
             while game.players[game.dealer_index].status == PlayerState.OUT:
                 game.dealer_index = (game.dealer_index + 1) % len(game.players)
-            
             game.start_hand()
             st.session_state.hand_recorded = False
-            st.session_state.winning_share = 0
+            st.session_state.winning_payouts = {}
+            st.session_state.board_reveal_count = 0
             st.rerun()
 
 else:
-    # Check whose turn
     current_player = game.players[game.current_player_index]
-    
-    if current_player.is_ai:
-        st.markdown(f'<p class="thinking-indicator">⏳ {current_player.name} is thinking...</p>', unsafe_allow_html=True)
-        time.sleep(1)  # Fake delay
-        
-        agent = st.session_state.agents[current_player.name]
-        valid_actions = game.get_legal_actions(current_player)
-        
-        # Prepare info
-        active_count = len([p for p in game.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]])
-        position = game.get_player_position(current_player)
-        pot_odds_info = game.calculate_pot_odds(current_player)
-        
-        game_info = {
-            "my_hand": [c.to_treys_str() for c in current_player.hand],
-            "board": [c.to_treys_str() for c in game.board],
-            "pot": game.pot,
-            "current_bet": game.current_bet,
-            "to_call": game.current_bet - current_player.current_bet,
-            "my_chips": current_player.chips,
-            "my_bet": current_player.current_bet,
-            "players": [str(p) for p in game.players],
-            "num_active_players": active_count,
-            "position": position,
-            "pot_odds": pot_odds_info,
-            "stage": game.stage.name
-        }
-        
-        decision = agent.get_action(game_info, valid_actions)
-        
-        action = decision.get("action", "fold")
-        val = 0
-        if action == "raise":
-             try:
-                 val = int(decision.get("amount", game.big_blind))
-             except (TypeError, ValueError):
-                 val = game.big_blind
-             val = max(val, game.big_blind)
-             
-        # Execute
-        try:
-             msg = decision.get("chat", "")
-             if msg:
-                 st.toast(f"💬 {current_player.name}: {msg}")
-             game.step(action, val)
-        except Exception as e:
-             st.error(f"AI Error: {e}")
-             
-        st.rerun()
-        
+
+    # Skip AI processing if card reveal animation is in progress
+    if st.session_state.get('card_reveal_in_progress', False):
+        print(f"[DEBUG] Card reveal in progress, waiting for animation to complete...")
+        time.sleep(0.5)
+        st.rerun()  # Re-check after animation step
+    elif current_player.is_ai:
+        if 'ai_processing' not in st.session_state:
+            print(f"[DEBUG] Starting AI turn for {current_player.name}")
+            st.session_state.thinking_message = f"⏳ {current_player.name} is thinking..."
+            st.session_state.ai_processing = True
+            st.rerun()
+        else:
+            print(f"[DEBUG] AI {current_player.name} processing decision...")
+            time.sleep(1)
+            agent = st.session_state.agents[current_player.name]
+            valid_actions = game.get_legal_actions(current_player)
+            print(f"[DEBUG] Valid actions for {current_player.name}: {valid_actions}")
+            active_count = len([p for p in game.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]])
+            position = game.get_player_position(current_player)
+            pot_odds_info = game.calculate_pot_odds(current_player)
+            game_info = {
+                'my_hand': [c.to_treys_str() for c in current_player.hand],
+                'board': [c.to_treys_str() for c in game.board],
+                'pot': game.pot,
+                'current_bet': game.current_bet,
+                'to_call': game.current_bet - current_player.current_bet,
+                'my_chips': current_player.chips,
+                'my_bet': current_player.current_bet,
+                'players': [str(p) for p in game.players],
+                'num_active_players': active_count,
+                'position': position,
+                'pot_odds': pot_odds_info,
+                'stage': game.stage.name
+            }
+            st.session_state.thinking_message = f"⏳ {current_player.name} is analyzing with LLM..."
+            decision = agent.get_action(game_info, valid_actions)
+            action = decision.get('action', 'fold')
+            val = 0
+            if action == 'raise':
+                try:
+                    val = int(decision.get('amount', game.big_blind))
+                except (TypeError, ValueError):
+                    val = game.big_blind
+                val = max(val, game.big_blind)
+            try:
+                msg = decision.get('chat', '')
+                if msg:
+                    st.toast(f"💬 {current_player.name}: {msg}")
+                game.step(action, val)
+            except Exception as e:
+                st.error(f'AI Error: {e}')
+            st.session_state.thinking_message = ''
+            if 'ai_processing' in st.session_state:
+                del st.session_state.ai_processing
+            st.rerun()
+
     else:
-        # Human Turn - Compact Layout
-        # Align with the bottom player column structure [1, 2, 1] to fix "crooked" alignment
+        if 'ai_processing' in st.session_state:
+            del st.session_state.ai_processing
+        st.session_state.thinking_message = ''
         _, main_col, _ = st.columns([1, 2, 1])
-        
         with main_col:
             valid_actions = game.get_legal_actions(current_player)
-            
-            # Row 1: Primary Actions
             c1, c2, c3, c4 = st.columns(4)
-            
             with c1:
-                if "check" in valid_actions:
-                    if st.button("✓ Check"):
-                        game.step("check")
+                if 'check' in valid_actions:
+                    if st.button('Check'):
+                        game.step('check')
                         st.rerun()
-                elif "call" in valid_actions:
+                elif 'call' in valid_actions:
                     cost = game.current_bet - current_player.current_bet
-                    if st.button(f"📞 Call ${cost}"):
-                        game.step("call")
+                    if st.button(f'Call ${cost}'):
+                        game.step('call')
                         st.rerun()
-                        
             with c2:
-                if "fold" in valid_actions:
-                    if st.button("🚫 Fold"):
-                        game.step("fold")
+                if 'fold' in valid_actions:
+                    if st.button('Fold'):
+                        game.step('fold')
                         st.rerun()
-
             with c3:
-                 if "all_in" in valid_actions:
-                    if st.button(f"⚡ All In"):
-                        game.step("all_in")
+                if 'all_in' in valid_actions:
+                    if st.button('All In'):
+                        game.step('all_in')
                         st.rerun()
-                        
-            # Row 2: Raise (conditionally shown in same block)
-            if "raise" in valid_actions:
+            if 'raise' in valid_actions:
                 with c4:
-                    # Raise Button directly next to others
-                    if st.button("💰 Raise"):
-                         # Determine amount from session state or default
-                         amt = st.session_state.get("raise_amount", game.current_bet + game.big_blind)
-                         amt_to_add = amt - game.current_bet
-                         if amt_to_add > 0:
-                            game.step("raise", amt_to_add)
+                    if st.button('Raise'):
+                        amt = st.session_state.get('raise_amount', game.current_bet + game.big_blind)
+                        amt_to_add = amt - game.current_bet
+                        if amt_to_add > 0:
+                            game.step('raise', amt_to_add)
                             st.rerun()
-                
-                # Slider below - thin row
                 min_r = game.current_bet + game.big_blind
                 max_r = current_player.chips + current_player.current_bet
                 if min_r < max_r:
-                    st.slider("Raise Amount", min_value=min_r, max_value=max_r, value=min_r, key="raise_amount", label_visibility="collapsed")
+                    st.slider('Raise Amount', min_value=min_r, max_value=max_r, value=min_r, key='raise_amount', label_visibility='collapsed')
