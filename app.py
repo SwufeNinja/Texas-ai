@@ -38,10 +38,13 @@ if "game" not in st.session_state:
     st.session_state.game.start_hand()
     st.session_state.hand_recorded = False
     st.session_state.winning_payouts = {}
+    st.session_state.board_reveal_count = 0  # how many board cards are shown for animation
 
 # Initialize thinking message state
 if "thinking_message" not in st.session_state:
     st.session_state.thinking_message = ""
+if "board_reveal_count" not in st.session_state:
+    st.session_state.board_reveal_count = 0
 
 game = st.session_state.game
 
@@ -71,6 +74,7 @@ if st.sidebar.button("🔄 Restart Game"):
     st.session_state.game.start_hand()
     st.session_state.hand_recorded = False
     st.session_state.thinking_message = ""
+    st.session_state.board_reveal_count = 0
     st.rerun()
 
 # === LUXURY GOLD-BLACK THEME CSS ===
@@ -147,7 +151,7 @@ st.markdown("""
     .pot-display p {
         color: #ddd;
         margin: 0;
-        font-size: 0.7em;
+        font-size: 1em;
         letter-spacing: 1px;
     }
     
@@ -360,8 +364,8 @@ def render_player_card(player, index, game, pos):
     if is_human:
         classes.append("human")
     
-    # Determine card display
-    show_cards = is_human or game.stage == GameStage.SHOWDOWN or player.status == PlayerState.ALL_IN
+    # Determine card display: only show at showdown/end or for human
+    show_cards = is_human or game.stage in (GameStage.SHOWDOWN, GameStage.GAME_OVER)
     
     if player.hand:
         cards_html = cards_to_html([str(c) for c in player.hand], hidden=not show_cards)
@@ -425,12 +429,27 @@ with center_col:
     {st.session_state.thinking_message}
 </div>'''
     
-    # 3. Prepare Community Cards HTML
-    if game.board:
-        board_cards_html = cards_to_html([str(c) for c in game.board])
+    # 3. Prepare Community Cards HTML with incremental reveal
+    stage_target = 0
+    if game.stage == GameStage.FLOP:
+        stage_target = 3
+    elif game.stage == GameStage.TURN:
+        stage_target = 4
+    elif game.stage in (GameStage.RIVER, GameStage.SHOWDOWN, GameStage.GAME_OVER):
+        stage_target = 5
+    stage_target = min(stage_target, len(game.board))
+
+    # Clamp stored counter to current board/stage
+    stored = st.session_state.get("board_reveal_count", 0)
+    stored = min(stored, stage_target, len(game.board))
+    st.session_state.board_reveal_count = stored
+
+    visible_count = stored
+    if game.board and visible_count > 0:
+        board_cards_html = cards_to_html([str(c) for c in game.board[:visible_count]])
         community_html = f'<div class="community-cards">{board_cards_html}</div>'
     else:
-        community_html = '<div class="community-cards" style="color: #888; font-style: italic;">Waiting for flop...</div>'
+        community_html = '<div class="community-cards" style="color: #888; font-size: 2.0em;font-style: italic;">Waiting for flop...</div>'
     
     # 4. Combine into Single Parent Helper
     # This ensures .pot-display, .thinking-indicator, and .community-cards are children of .poker-table
@@ -441,6 +460,12 @@ with center_col:
 </div>'''
     
     st.markdown(table_html, unsafe_allow_html=True)
+
+    # If more cards should be revealed, schedule next reveal after rendering
+    if stage_target > visible_count:
+        st.session_state.board_reveal_count = min(visible_count + 1, stage_target)
+        time.sleep(0.4)
+        st.rerun()
 
 with right_col:
     for i, p in enumerate(game.players):
@@ -466,13 +491,13 @@ with bot_col2:
 # === GAME LOGIC / ACTIONS ===
 if game.stage == GameStage.GAME_OVER:
     winners = game.winners or game.determine_winners()
-    payouts = game.payouts if game.payouts else st.session_state.get("winning_payouts", {})
-    
+    payouts = game.payouts if game.payouts else st.session_state.get('winning_payouts', {})
+
     # Record Memory once per hand (engine already paid out)
-    if not st.session_state.get("hand_recorded", False):
+    if not st.session_state.get('hand_recorded', False):
         st.session_state.winning_payouts = payouts
         if winners:
-            w_names = ", ".join([w.name for w in winners])
+            w_names = ', '.join([w.name for w in winners])
             total_paid = sum(payouts.values()) if payouts else 0
             summary = f"Hand ended. Winners: {w_names}. Paid out: ${total_paid}."
             for agent in st.session_state.agents.values():
@@ -483,154 +508,111 @@ if game.stage == GameStage.GAME_OVER:
         st.balloons()
         if payouts:
             parts = [f"{w.name} +${payouts.get(w.name, 0)}" for w in winners]
-            banner_text = ", ".join(parts)
+            banner_text = ', '.join(parts)
         else:
-            banner_text = ", ".join([w.name for w in winners])
+            banner_text = ', '.join([w.name for w in winners])
         st.markdown(f'<div class="winner-banner">{banner_text}</div>', unsafe_allow_html=True)
-    
-    # Reduced spacing
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("🃏 Deal Next Hand"):
-            # Rotate dealer position
+        if st.button('🃏 Deal Next Hand'):
             game.dealer_index = (game.dealer_index + 1) % len(game.players)
-            # Skip OUT players for dealer
             while game.players[game.dealer_index].status == PlayerState.OUT:
                 game.dealer_index = (game.dealer_index + 1) % len(game.players)
-            
             game.start_hand()
             st.session_state.hand_recorded = False
-            st.session_state.winning_share = 0
+            st.session_state.winning_payouts = {}
+            st.session_state.board_reveal_count = 0
             st.rerun()
 
-# 在AI回合逻辑部分（约505-590行）修改为：
 else:
-    # Check whose turn
     current_player = game.players[game.current_player_index]
-    
-    # 修改AI思考阶段的信息显示
 
+    if current_player.is_ai:
+        if 'ai_processing' not in st.session_state:
+            st.session_state.thinking_message = f"⏳ {current_player.name} is thinking..."
+            st.session_state.ai_processing = True
+            st.rerun()
+        else:
+            time.sleep(1)
+            agent = st.session_state.agents[current_player.name]
+            valid_actions = game.get_legal_actions(current_player)
+            active_count = len([p for p in game.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]])
+            position = game.get_player_position(current_player)
+            pot_odds_info = game.calculate_pot_odds(current_player)
+            game_info = {
+                'my_hand': [c.to_treys_str() for c in current_player.hand],
+                'board': [c.to_treys_str() for c in game.board],
+                'pot': game.pot,
+                'current_bet': game.current_bet,
+                'to_call': game.current_bet - current_player.current_bet,
+                'my_chips': current_player.chips,
+                'my_bet': current_player.current_bet,
+                'players': [str(p) for p in game.players],
+                'num_active_players': active_count,
+                'position': position,
+                'pot_odds': pot_odds_info,
+                'stage': game.stage.name
+            }
+            st.session_state.thinking_message = f"⏳ {current_player.name} is analyzing with LLM..."
+            decision = agent.get_action(game_info, valid_actions)
+            action = decision.get('action', 'fold')
+            val = 0
+            if action == 'raise':
+                try:
+                    val = int(decision.get('amount', game.big_blind))
+                except (TypeError, ValueError):
+                    val = game.big_blind
+                val = max(val, game.big_blind)
+            try:
+                msg = decision.get('chat', '')
+                if msg:
+                    st.toast(f"💬 {current_player.name}: {msg}")
+                game.step(action, val)
+            except Exception as e:
+                st.error(f'AI Error: {e}')
+            st.session_state.thinking_message = ''
+            if 'ai_processing' in st.session_state:
+                del st.session_state.ai_processing
+            st.rerun()
 
-
-#判断目前操作的人是ai还是真人    
-if current_player.is_ai: # type: ignore
-    # 检查是否正在处理AI决策
-    if "ai_processing" not in st.session_state:
-        # 第一阶段：设置thinking信息并重新运行以更新UI
-        st.session_state.thinking_message = f"⏳ {current_player.name} is thinking..."
-        st.session_state.ai_processing = True
-        st.rerun()
     else:
-        # 第二阶段：执行AI决策
-        time.sleep(1)  # Fake delay
-        
-        agent = st.session_state.agents[current_player.name]
-        valid_actions = game.get_legal_actions(current_player)
-        
-        # Prepare info
-        active_count = len([p for p in game.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]])
-        position = game.get_player_position(current_player)
-        pot_odds_info = game.calculate_pot_odds(current_player)
-        
-        game_info = {
-            "my_hand": [c.to_treys_str() for c in current_player.hand],
-            "board": [c.to_treys_str() for c in game.board],
-            "pot": game.pot,
-            "current_bet": game.current_bet,
-            "to_call": game.current_bet - current_player.current_bet,
-            "my_chips": current_player.chips,
-            "my_bet": current_player.current_bet,
-            "players": [str(p) for p in game.players],
-            "num_active_players": active_count,
-            "position": position,
-            "pot_odds": pot_odds_info,
-            "stage": game.stage.name
-        }
-        
-        # 添加更明确的LLM调用提示
-        st.session_state.thinking_message = f"⏳ {current_player.name} is analyzing with LLM..."
-        # st.rerun()
-        
-        decision = agent.get_action(game_info, valid_actions)
-        
-        action = decision.get("action", "fold")
-        val = 0
-        if action == "raise":
-             try:
-                 val = int(decision.get("amount", game.big_blind))
-             except (TypeError, ValueError):
-                 val = game.big_blind
-             val = max(val, game.big_blind)
-          
-        # Execute
-        try:
-             msg = decision.get("chat", "")
-             if msg:
-                 st.toast(f"💬 {current_player.name}: {msg}")
-             game.step(action, val)
-        except Exception as e:
-             st.error(f"AI Error: {e}")
-          
-        # 清除thinking信息和处理标记
-        st.session_state.thinking_message = ""
-        del st.session_state.ai_processing
-        st.rerun()
-
-#真人操作
-else:
-    # Clear thinking message when it's human turn
-    if "ai_processing" in st.session_state:
-        del st.session_state.ai_processing
-    st.session_state.thinking_message = ""
-    
-    # Human Turn - Compact Layout
-    # Align with the bottom player column structure [1, 2, 1] to fix "crooked" alignment
-    _, main_col, _ = st.columns([1, 2, 1])
-    
-    with main_col:
-        valid_actions = game.get_legal_actions(current_player)
-        
-        # Row 1: Primary Actions
-        c1, c2, c3, c4 = st.columns(4)
-        
-        with c1:
-            if "check" in valid_actions:
-                if st.button("✓ Check"):
-                    game.step("check")
-                    st.rerun()
-            elif "call" in valid_actions:
-                cost = game.current_bet - current_player.current_bet
-                if st.button(f"📞 Call ${cost}"):
-                    game.step("call")
-                    st.rerun()
-                    
-        with c2:
-            if "fold" in valid_actions:
-                if st.button("🚫 Fold"):
-                    game.step("fold")
-                    st.rerun()
-
-        with c3:
-                if "all_in" in valid_actions:
-                    if st.button(f"⚡ All In"):
-                        game.step("all_in")
+        if 'ai_processing' in st.session_state:
+            del st.session_state.ai_processing
+        st.session_state.thinking_message = ''
+        _, main_col, _ = st.columns([1, 2, 1])
+        with main_col:
+            valid_actions = game.get_legal_actions(current_player)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                if 'check' in valid_actions:
+                    if st.button('Check'):
+                        game.step('check')
                         st.rerun()
-                    
-        # Row 2: Raise (conditionally shown in same block)
-        if "raise" in valid_actions:
-            with c4:
-                # Raise Button directly next to others
-                if st.button("💰 Raise"):
-                        # Determine amount from session state or default
-                        amt = st.session_state.get("raise_amount", game.current_bet + game.big_blind)
+                elif 'call' in valid_actions:
+                    cost = game.current_bet - current_player.current_bet
+                    if st.button(f'Call ${cost}'):
+                        game.step('call')
+                        st.rerun()
+            with c2:
+                if 'fold' in valid_actions:
+                    if st.button('Fold'):
+                        game.step('fold')
+                        st.rerun()
+            with c3:
+                if 'all_in' in valid_actions:
+                    if st.button('All In'):
+                        game.step('all_in')
+                        st.rerun()
+            if 'raise' in valid_actions:
+                with c4:
+                    if st.button('Raise'):
+                        amt = st.session_state.get('raise_amount', game.current_bet + game.big_blind)
                         amt_to_add = amt - game.current_bet
                         if amt_to_add > 0:
-                            game.step("raise", amt_to_add)
+                            game.step('raise', amt_to_add)
                             st.rerun()
-            
-            # Slider below - thin row
-            min_r = game.current_bet + game.big_blind
-            max_r = current_player.chips + current_player.current_bet
-            if min_r < max_r:
-                st.slider("Raise Amount", min_value=min_r, max_value=max_r, value=min_r, key="raise_amount", label_visibility="collapsed")
+                min_r = game.current_bet + game.big_blind
+                max_r = current_player.chips + current_player.current_bet
+                if min_r < max_r:
+                    st.slider('Raise Amount', min_value=min_r, max_value=max_r, value=min_r, key='raise_amount', label_visibility='collapsed')
