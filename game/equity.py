@@ -8,7 +8,7 @@ class EquityCalculator:
         self.evaluator = HandEvaluator()
         self.deck = Deck()
 
-    def calculate_equity(self, my_hand: List[str], board: List[str], num_active_players: int = 2, simulations: int = 1000) -> float:
+    def calculate_equity(self, my_hand: List[str], board: List[str], num_active_players: int = 2, simulations: int = 500) -> float:
         """
         Calculates the equity (win probability) of a hand using Monte Carlo simulation.
         
