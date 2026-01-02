@@ -66,6 +66,17 @@ def _hand_in_progress() -> bool:
     return False
 
 
+def _prune_disconnected_players() -> None:
+    active_ids = {pid for _, pid in manager.connections()}
+    current_players = list(room.players)
+    room.players.clear()
+    for player in current_players:
+        if player.is_ai or player.id in active_ids:
+            room.players.append(player)
+        else:
+            print(f"Pruning disconnected player: {player.id}")
+
+
 def _next_seq() -> int:
     global seq_counter
     seq_counter += 1
@@ -132,6 +143,10 @@ async def _run_ai_turns() -> None:
 async def _maybe_start_next_hand() -> None:
     if room.stage != Stage.SHOWDOWN:
         return
+    
+    # Caller must hold engine_lock
+    _prune_disconnected_players()
+
     if not room.awaiting_ready:
         for player in room.players:
             if player.chips > 0:
@@ -262,6 +277,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         async with engine_lock:
             manager.disconnect(websocket)
+            if not _hand_in_progress():
+                _prune_disconnected_players()
+                _maybe_start_hand()
+                if engine.room.stage != Stage.PREFLOP:
+                    await _broadcast_state()
+                    await _run_ai_turns()
+                    await _maybe_start_next_hand()
+
             if player_id:
                 player = _find_player(player_id)
                 if player is not None:
