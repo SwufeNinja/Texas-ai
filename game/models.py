@@ -72,12 +72,14 @@ class Player:
         self.status = PlayerState.ACTIVE
         self.current_bet = 0 # Bet in the current round
         self.acted_in_round = False
+        self.total_bet = 0  # Total chips committed this hand (used for pot/side-pot logic)
 
     def reset_for_round(self):
         self.hand = []
         self.status = PlayerState.ACTIVE if self.chips > 0 else PlayerState.OUT
         self.current_bet = 0
         self.acted_in_round = False
+        self.total_bet = 0
 
     def __str__(self):
         return f"{self.name} (Chips: {self.chips})"

@@ -37,6 +37,7 @@ if "game" not in st.session_state:
         
     st.session_state.game.start_hand()
     st.session_state.hand_recorded = False
+    st.session_state.winning_payouts = {}
 
 # Initialize thinking message state
 if "thinking_message" not in st.session_state:
@@ -464,29 +465,28 @@ with bot_col2:
 
 # === GAME LOGIC / ACTIONS ===
 if game.stage == GameStage.GAME_OVER:
-    winners = game.determine_winners()
+    winners = game.winners or game.determine_winners()
+    payouts = game.payouts if game.payouts else st.session_state.get("winning_payouts", {})
     
-    # Record Memory and Distribute Pot (Once per hand)
+    # Record Memory once per hand (engine already paid out)
     if not st.session_state.get("hand_recorded", False):
+        st.session_state.winning_payouts = payouts
         if winners:
-            # Distribute pot to winners - only once!
-            share = game.pot // len(winners)
-            
-            for w in winners:
-                w.chips += share
-            st.session_state.winning_share = share  # Store for display
-            
             w_names = ", ".join([w.name for w in winners])
-            summary = f"Hand ended. Winners: {w_names}. Pot: {game.pot}."
+            total_paid = sum(payouts.values()) if payouts else 0
+            summary = f"Hand ended. Winners: {w_names}. Paid out: ${total_paid}."
             for agent in st.session_state.agents.values():
                 agent.add_memory(summary)
         st.session_state.hand_recorded = True
 
     if winners:
         st.balloons()
-        w_names = ", ".join([w.name for w in winners])
-        share = st.session_state.get("winning_share", game.pot // len(winners))
-        st.markdown(f'<div class="winner-banner">🏆 {w_names} wins ${share}! 🏆</div>', unsafe_allow_html=True)
+        if payouts:
+            parts = [f"{w.name} +${payouts.get(w.name, 0)}" for w in winners]
+            banner_text = ", ".join(parts)
+        else:
+            banner_text = ", ".join([w.name for w in winners])
+        st.markdown(f'<div class="winner-banner">{banner_text}</div>', unsafe_allow_html=True)
     
     # Reduced spacing
 
@@ -502,7 +502,6 @@ if game.stage == GameStage.GAME_OVER:
             game.start_hand()
             st.session_state.hand_recorded = False
             st.session_state.winning_share = 0
-            st.session_state.thinking_message = ""
             st.rerun()
 
 # 在AI回合逻辑部分（约505-590行）修改为：
