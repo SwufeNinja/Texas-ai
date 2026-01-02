@@ -29,6 +29,7 @@ class TexasHoldemGame:
         self.aggressor_index = 0 # Who made the last raise (or BB start)
         self.round_bets_matched = False # If true, ready to deal next cards
         self.winners: List[Player] = []
+        self.payouts: Dict[str, int] = {}  # name -> chips awarded for the hand
 
     def add_player(self, player: Player):
         self.players.append(player)
@@ -41,6 +42,7 @@ class TexasHoldemGame:
         self.current_bet = 0
         self.stage = GameStage.PREFLOP
         self.winners = []
+        self.payouts = {}
         
         # Reset players
         active_count = 0
@@ -93,6 +95,7 @@ class TexasHoldemGame:
         actual_bet = min(player.chips, amount)
         player.chips -= actual_bet
         player.current_bet = actual_bet
+        player.total_bet += actual_bet
         self.pot += actual_bet
         if player.chips == 0:
             player.status = PlayerState.ALL_IN
@@ -218,18 +221,19 @@ class TexasHoldemGame:
         """
         Move to next active player. Check if round is complete.
         """
-        # 1. Check if only one player left with chips (others folded or busted previously)
-        active_players = [p for p in self.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]]
+        # 1. Check if only one player left (everyone else folded or busted)
         not_folded = [p for p in self.players if p.status != PlayerState.FOLDED and p.status != PlayerState.OUT]
-        
         if len(not_folded) == 1:
-            # Everyone else folded
-            self.stage = GameStage.SHOWDOWN # Or just end immediately
-            self.determine_winners()
-            self.stage = GameStage.GAME_OVER
+            self._finish_single_player(not_folded[0])
             return
 
-        # 2. Check if round is complete
+        # 2. If no ACTIVE players (only ALL_IN remain), run out the board and settle
+        active_players = [p for p in self.players if p.status == PlayerState.ACTIVE]
+        if len(active_players) == 0:
+            self._run_all_in_showdown()
+            return
+
+        # 3. Check if round is complete
         # Round is complete if: 
         # All ACTIVE players have acted AND their bets match current_bet (or they are all-in)
         
@@ -252,7 +256,7 @@ class TexasHoldemGame:
             self.next_stage()
             return
 
-        # 3. If not complete, find next active player
+        # 4. If not complete, find next active player
         start = self.current_player_index
         next_idx = (self.current_player_index + 1) % len(self.players)
         
@@ -283,8 +287,7 @@ class TexasHoldemGame:
             self.deal_community_cards(1)
         elif self.stage == GameStage.RIVER:
             self.stage = GameStage.SHOWDOWN
-            self.determine_winners()
-            self.stage = GameStage.GAME_OVER
+            self._finalize_hand_with_showdown()
             return # End
         
         # Prepare for new betting round
@@ -304,14 +307,8 @@ class TexasHoldemGame:
         active_count = len([p for p in self.players if p.status == PlayerState.ACTIVE])
         if active_count < 2:
             # Everyone else is All-in or Folded. 
-            # We should just deal remaining cards and show down.
-            # Auto-step recursively
-            # But wait, we might want animation delay in UI.
-            # For now, just let UI call 'next_stage' or handle it? 
-            # Ideally the engine should handle "no actions left".
-            pass # Keep it manual for now or Streamlit loop will handle "check" automatically? No.
-            # If no active players, get_legal_actions returns empty? or we auto-call step?
-            # Let's leave it. UI will see no legal actions -> verify logic.
+            # Auto-run the remaining board and settle immediately.
+            self._run_all_in_showdown()
             
     def _ensure_active_current_player(self):
         """Rotates current_player_index until it hits an active player (or circles back)."""
@@ -337,6 +334,7 @@ class TexasHoldemGame:
             actual_call = min(player.chips, call_amount)
             player.chips -= actual_call
             player.current_bet += actual_call
+            player.total_bet += actual_call
             self.pot += actual_call
             if player.chips == 0:
                 player.status = PlayerState.ALL_IN
@@ -350,6 +348,7 @@ class TexasHoldemGame:
                 
             player.chips -= total_cost
             player.current_bet += total_cost
+            player.total_bet += total_cost
             self.pot += total_cost
             if player.current_bet > self.current_bet:
                 self.current_bet = player.current_bet
@@ -359,6 +358,7 @@ class TexasHoldemGame:
              bet = player.chips
              player.chips = 0
              player.current_bet += bet
+             player.total_bet += bet
              self.pot += bet
              player.status = PlayerState.ALL_IN
              if player.current_bet > self.current_bet:
@@ -367,11 +367,13 @@ class TexasHoldemGame:
     def determine_winners(self) -> List[Player]:
         active_players = [p for p in self.players if p.status in [PlayerState.ACTIVE, PlayerState.ALL_IN]]
         if not active_players:
+            self.winners = []
             return []
             
         # If only one player left (everyone else folded)
         # Note: This checks showdown strength. Fold logic usually handled before.
         if len(active_players) == 1:
+            self.winners = active_players
             return active_players
 
         best_score = float('inf')
@@ -384,5 +386,122 @@ class TexasHoldemGame:
                 winners = [p]
             elif score == best_score:
                 winners.append(p)
-                
+
+        self.winners = winners
         return winners
+
+    # === Internal helpers for finishing a hand ===
+
+    def _deal_remaining_board_to_river(self):
+        needed = 5 - len(self.board)
+        if needed > 0:
+            self.deal_community_cards(needed)
+
+    def _finish_single_player(self, player: Player):
+        """Everyone else folded/out: award whole pot to remaining player."""
+        self.winners = [player]
+        self.payouts = {player.name: self.pot}
+        player.chips += self.pot
+        self.pot = 0
+        self.stage = GameStage.GAME_OVER
+
+    def _run_all_in_showdown(self):
+        """No active actions left (all-in). Run board to river and settle pots."""
+        if self.stage == GameStage.GAME_OVER:
+            return
+        self._deal_remaining_board_to_river()
+        self._settle_side_pots()
+
+    def _finalize_hand_with_showdown(self):
+        """Explicit showdown after river betting complete."""
+        if self.stage == GameStage.GAME_OVER:
+            return
+        self._deal_remaining_board_to_river()
+        self._settle_side_pots()
+
+    def _settle_side_pots(self):
+        """
+        Distribute pot using side-pot aware logic based on total_bet per player.
+        Folded/OUT players are ineligible to win but their chips stay in pots.
+        """
+        contributions = {p: p.total_bet for p in self.players if p.total_bet > 0}
+        eligible = [p for p in self.players if p.status not in (PlayerState.FOLDED, PlayerState.OUT) and p.total_bet > 0]
+
+        # Nothing to distribute
+        if not contributions:
+            self.winners = []
+            self.payouts = {}
+            self.stage = GameStage.GAME_OVER
+            return
+
+        # If only one eligible player, award all
+        if len(eligible) == 1:
+            solo = eligible[0]
+            solo.chips += self.pot
+            self.winners = [solo]
+            self.payouts = {solo.name: self.pot}
+            self.pot = 0
+            self.stage = GameStage.GAME_OVER
+            return
+
+        side_pots: List[tuple[int, List[Player]]] = []
+        remaining = contributions.copy()
+
+        # Build side pots incrementally
+        while remaining:
+            min_commit = min(remaining.values())
+            involved_players = list(remaining.keys())
+            pot_amount = min_commit * len(involved_players)
+            pot_eligible = [p for p in involved_players if p in eligible]
+            side_pots.append((pot_amount, pot_eligible))
+            for p in involved_players:
+                remaining[p] -= min_commit
+            remaining = {p: v for p, v in remaining.items() if v > 0}
+
+        payouts: Dict[str, int] = {}
+        winners: List[Player] = []
+
+        for pot_amount, contenders in side_pots:
+            if not contenders or pot_amount == 0:
+                continue
+
+            best_score = float('inf')
+            pot_winners: List[Player] = []
+            for p in contenders:
+                score = self.evaluator.evaluate(p.hand, self.board)
+                if score < best_score:
+                    best_score = score
+                    pot_winners = [p]
+                elif score == best_score:
+                    pot_winners.append(p)
+
+            if not pot_winners:
+                continue
+
+            share = pot_amount // len(pot_winners)
+            remainder = pot_amount - share * len(pot_winners)
+            for w in pot_winners:
+                payouts[w.name] = payouts.get(w.name, 0) + share
+            if remainder > 0:
+                payouts[pot_winners[0].name] = payouts.get(pot_winners[0].name, 0) + remainder
+
+            for w in pot_winners:
+                if w not in winners:
+                    winners.append(w)
+
+        # Pay out and clean up
+        for p in self.players:
+            gained = payouts.get(p.name, 0)
+            if gained:
+                p.chips += gained
+
+        self.pot = 0
+        self.payouts = payouts
+        self.winners = winners
+        self.stage = GameStage.GAME_OVER
+
+    def settle_hand(self):
+        """Public helper to finish the hand and distribute the pot if not already done."""
+        if self.stage == GameStage.GAME_OVER:
+            return
+        self._finalize_hand_with_showdown()

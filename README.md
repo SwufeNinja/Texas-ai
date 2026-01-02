@@ -1,5 +1,4 @@
 python -m streamlit run app.py
-<<<<<<< HEAD
 
 v0.2-dev
 feat：
@@ -9,6 +8,4 @@ fix：
 1.前端用户操作完之后，thinking应该显示。
 2.建议thinking用户显示在桌面中央。waitingfor flop显示在thinking逻辑的下方。
 3.call完别人的禁止raise。
-=======
-test
->>>>>>> origin/main
+4.test

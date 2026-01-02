@@ -19,7 +19,7 @@ except ImportError:
 from openai import OpenAI
 
 class LLMClient:
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: str = "glm-4-flashx-250414"):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: str = "glm-4.5-air"):
         self.api_key = api_key or os.getenv("ZHIPU_API_KEY")
         if not self.api_key:
             raise ValueError("API key not provided. Set ZHIPU_API_KEY environment variable or pass api_key parameter.")
@@ -58,7 +58,7 @@ class LLMClient:
                  response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=0.7
+                    temperature=0.5
                     # Zhipu SDK might not support response_format={"type": "json_object"} directly or consistently?
                     # test.py didn't use it. Let's assume we don't use it for zhipu or try it.
                     # Best to clean prompt to ask for JSON.
@@ -68,7 +68,7 @@ class LLMClient:
                     model=self.model,
                     messages=messages, # type: ignore
                     response_format={"type": "json_object"} if json_mode else None,  # pyright: ignore[reportArgumentType]
-                    temperature=0.7
+                    temperature=0.5
                 )
             
             # OpenAI 1.x / ZhipuAI response structure
