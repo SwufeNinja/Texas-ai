@@ -1,1 +1,1 @@
-xpp我cnmb
+python -m streamlit run app.py
