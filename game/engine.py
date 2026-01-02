@@ -182,10 +182,9 @@ class TexasHoldemGame:
         if call_amount == 0:
             actions.append("check")
         else:
-            if player.chips >= call_amount:
+            if player.chips > call_amount:
                 actions.append("call")
-            else:
-                actions.append("all_in")
+            actions.append("all_in")
                 
         if player.chips > call_amount:
             actions.append("raise")
