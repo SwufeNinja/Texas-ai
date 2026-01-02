@@ -514,7 +514,7 @@ else:
 
 
 #判断目前操作的人是ai还是真人    
-if current_player.is_ai:
+if current_player.is_ai: # type: ignore
     # 检查是否正在处理AI决策
     if "ai_processing" not in st.session_state:
         # 第一阶段：设置thinking信息并重新运行以更新UI
