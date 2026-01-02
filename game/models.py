@@ -82,4 +82,8 @@ class Player:
         self.total_bet = 0
 
     def __str__(self):
-        return f"{self.name} (Chips: {self.chips})"
+        status_str = ""
+        if self.status != PlayerState.ACTIVE:
+            status_str = f" [{self.status.value.upper()}]"
+        
+        return f"{self.name} (Chips: {self.chips}, Bet: {self.current_bet}{status_str})"

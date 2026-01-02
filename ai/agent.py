@@ -2,14 +2,12 @@ from typing import List, Dict, Any
 import json
 import logging
 from .llm_client import LLMClient
-from game.equity import EquityCalculator
 
 class PokerAgent:
     def __init__(self, name: str, profile: str = "A professional poker player", client: LLMClient = None): # type: ignore
         self.name = name
         self.profile = profile
         self.client = client if client else LLMClient()
-        self.equity_calculator = EquityCalculator()
         self.memories: List[str] = []
 
     def add_memory(self, event: str):
@@ -21,33 +19,11 @@ class PokerAgent:
 
     def get_action(self, game_info: Dict[str, Any], valid_actions: List[str]) -> Dict[str, Any]:
         """
-        Decides an action based on game state.
+        Decides an action based on game state using LLM reasoning.
         Returns dict like: {"action": "raise", "amount": 10, "chat": "..."}
         """
         if not valid_actions:
             return {"action": "fold", "reasoning": "No valid actions"}
-
-        # Calculate Equity
-        my_hand = game_info.get('my_hand', [])
-        board = game_info.get('board', [])
-        
-        # Determine num players (active)
-        # game_info should ideally provide this. If not, guess from 'players' list length or default 2
-        all_players_info = game_info.get('players', [])
-        # We need active count. If string list, we can't tell easily unless parsed.
-        # Fallback: assume 2 if heads up or unknown, or try to parse string? 
-        # Better: let caller provide 'num_active_players'
-        num_active = game_info.get('num_active_players', 2)
-        
-        equity = 0.0
-        if my_hand:
-            try:
-                equity = self.equity_calculator.calculate_equity(my_hand, board, num_active_players=num_active)
-            except Exception as e:
-                logging.error(f"Equity calc error: {e}")
-                equity = 0.0 # Ignore
-
-        equity_percent = round(equity * 100, 1)
 
         memory_str = "\n".join([f"- {m}" for m in self.memories])
         if memory_str:
@@ -55,22 +31,29 @@ class PokerAgent:
         else:
             memory_section = ""
 
+        # Enhanced System Message
         system_message = (
             f"You are {self.name}, playing Texas Hold'em. {self.profile}\n"
-            "Your goal is to win chips. You must make logical decisions based on your hand, the board, and pot odds.\n"
+            "Your goal is to win chips over the long run. "
+            "You must make decisions by Analyzing the following factors yourself:\n"
+            "1. **Hand Strength**: How strong is your hand? (e.g., Pair, Set, Flush Draw)\n"
+            "2. **Board Texture**: Is the board wet (many draws) or dry?\n"
+            "3. **Position**: Are you late position (BTN, CO) or early?\n"
+            "4. **Pot Odds**: Are the odds favorable for a call?\n"
+            "5. **Opponent Actions**: Did they show strength (raise) or weakness (check)?\n\n"
             f"{memory_section}"
             "You must output JSON only."
         )
 
         # Construct Game State Description
         state_desc = self._format_state(game_info)
-        state_desc += f"\nYour Calculated Win Probability (Equity): {equity_percent}%"
         
         user_message = (
             f"Game State:\n{state_desc}\n\n"
             f"Valid Actions: {', '.join(valid_actions)}\n"
-            "What is your move? Respond in JSON format with fields: 'action', 'amount' (optional if not raising), 'reasoning', 'chat'."
-            "Example: {\"action\": \"call\", \"amount\": 0, \"reasoning\": \"Pot odds are good\", \"chat\": \"I call.\"}"
+            "Analyze the situation and decide your move. Respond in JSON format with fields: "
+            "'action', 'amount' (optional if not raising), 'reasoning', 'chat'.\n"
+            "Example: {\"action\": \"call\", \"amount\": 0, \"reasoning\": \"Pot odds are good with a flush draw\", \"chat\": \"I'm staying in.\"}"
         )
 
         response = self.client.chat_completion(
@@ -84,10 +67,10 @@ class PokerAgent:
         if "error" in response:
             # Fallback to check/call instead of always folding
             if "check" in valid_actions:
-                return {"action": "check", "reasoning": "LLM Error - checking", "chat": "..."}
+                return {"action": "check", "reasoning": "LLM Error - checking", "chat": "Hmm..."}
             elif "call" in valid_actions:
-                return {"action": "call", "reasoning": "LLM Error - calling", "chat": "..."}
-            return {"action": "fold", "reasoning": "LLM Error", "chat": "..."}
+                return {"action": "call", "reasoning": "LLM Error - calling", "chat": "I call."}
+            return {"action": "fold", "reasoning": "LLM Error", "chat": "I fold."}
 
         # Validate action
         action = response.get("action", "").lower()
@@ -107,22 +90,29 @@ class PokerAgent:
         """
         lines = []
         lines.append(f"My Hand: {info.get('my_hand')}")
-        lines.append(f"Community Cards (Board): {info.get('board')}")
+        lines.append(f"Community Cards: {info.get('board')}")
         lines.append(f"Game Stage: {info.get('stage', 'Unknown')}")
         lines.append(f"My Position: {info.get('position', 'Unknown')}")
         lines.append(f"Pot Size: {info.get('pot')}")
-        lines.append(f"Current Bet to match: {info.get('current_bet')}")
-        lines.append(f"Cost to Call: {info.get('to_call')}")
         lines.append(f"My Chips: {info.get('my_chips')}")
-        lines.append(f"My Previous Bet: {info.get('my_bet')}")
+        lines.append(f"Current Bet to Match: {info.get('to_call')}")
+        lines.append(f"My Current Round Bet: {info.get('my_bet')}")
         
-        # Add pot odds info
+        # Add pot odds info if available
         pot_odds = info.get('pot_odds', {})
         if pot_odds:
-            lines.append(f"Pot Odds: {pot_odds.get('pot_odds_pct', 'N/A')} ({pot_odds.get('description', '')})")
+            # If it's a dict, format it nicely
+            if isinstance(pot_odds, dict):
+                 pct = pot_odds.get('pot_odds_pct', 'N/A')
+                 desc = pot_odds.get('description', '')
+                 lines.append(f"Pot Odds: {pct} ({desc})")
+            else:
+                 lines.append(f"Pot Odds: {pot_odds}")
         
         # Add history/players info if available
         if 'players' in info:
-           lines.append(f"Other Players: {info['players']}")
+           lines.append(f"Table Summary: {info['players']}")
+        
+        lines.append(f"Active Players Count: {info.get('num_active_players', 'Unknown')}")
 
         return "\n".join(lines)
