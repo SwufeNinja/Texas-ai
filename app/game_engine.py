@@ -12,17 +12,35 @@ SUITS = "shdc"
 
 
 class GameEngine:
+    """
+    Core logic engine for Texas Hold'em.
+    
+    Manages the state of a single room, including:
+    - Deck management and dealing
+    - Betting rounds (Preflop, Flop, Turn, River)
+    - Action processing and validation
+    - Pot calculation and side pots (basic implementation)
+    - Showdown and winner determination
+    """
     def __init__(self, room: Room, rng: Optional[random.Random] = None) -> None:
         self.room = room
         self.rng = rng or random.Random()
 
     def start_hand(self) -> None:
+        """
+        Initializes a new hand.
+        
+        Resets deck, pot, and community cards.
+        Sets player statuses, posts blinds, and deals hole cards.
+        """
         self._reset_deck()
         self.room.community_cards = []
         self.room.pot = 0
         self.room.stage = Stage.PREFLOP
         self.room.winners = []
         self.room.winning_hand = ""
+        
+        # Reset player state for valid players
         for player in self.room.players:
             player.bet = 0
             player.has_acted = False
@@ -36,22 +54,36 @@ class GameEngine:
         if len(active_indexes) < 2:
             raise ValueError("Need at least two active players to start a hand.")
 
+        # Move dealer button
         self.room.dealer_index = self._next_active_index(self.room.dealer_index, include_start=True)
         sb_index = self._next_active_index(self.room.dealer_index)
         bb_index = self._next_active_index(sb_index)
 
         self._deal_hole_cards()
 
+        # Post Blinds
         self.room.current_bet = 0
         self.room.last_raise_size = self.room.big_blind
         self._post_blind(sb_index, self.room.small_blind)
         self._post_blind(bb_index, self.room.big_blind)
         self.room.current_bet = self.room.big_blind
 
+        # Set first actor (UTG)
         self.room.current_actor_index = self._next_active_index(bb_index)
         self._reset_has_acted(exclude_indexes={bb_index})
 
     def process_action(self, player_id: str, action: str, amount: int = 0) -> Tuple[bool, str]:
+        """
+        Processes a player's action.
+        
+        Args:
+            player_id: The ID of the player acting.
+            action: One of 'fold', 'check', 'call', 'raise', 'allin'.
+            amount: The amount to raise (if applicable).
+            
+        Returns:
+            Tuple[bool, str]: (Success, Message/Reason).
+        """
         player = self._find_player(player_id)
         if player is None:
             return False, "unknown player"
@@ -98,6 +130,8 @@ class GameEngine:
             all_in_amount = player.chips
             self._commit_chips(player, all_in_amount)
             player.status = PlayerStatus.ALLIN
+            
+            # If all-in constitutes a raise, reopen betting
             if player.bet > self.room.current_bet:
                 raise_amount = player.bet - self.room.current_bet
                 min_raise = max(self.room.big_blind, self.room.last_raise_size)
@@ -109,23 +143,27 @@ class GameEngine:
         else:
             return False, "unknown action"
 
+        # Check for hand end (everyone folded or won)
         if self._hand_should_end():
             self.room.stage = Stage.SHOWDOWN
             self._resolve_showdown()
             return True, "hand ended"
 
+        # Check if everyone is all-in or folded except one checks/calls
         if self._no_players_can_act():
             self._deal_remaining_community()
             self.room.stage = Stage.SHOWDOWN
             self._resolve_showdown()
             return True, "hand ended"
 
+        # Check if round is complete (everyone matched bet or folded)
         if self._round_complete():
             self._advance_stage()
             if self.room.stage == Stage.SHOWDOWN:
                 self._resolve_showdown()
             return True, "stage advanced"
 
+        # Next player
         self.room.current_actor_index = self._next_active_index(self.room.current_actor_index)
         return True, "action applied"
 
@@ -136,6 +174,7 @@ class GameEngine:
         amount: int,
         reason: str,
     ) -> dict:
+        """Returns detailed context for why an action failed, for UI/Debug."""
         player = self._find_player(player_id)
         details: dict = {}
         if player is None:
@@ -180,6 +219,7 @@ class GameEngine:
         return details
 
     def state_snapshot(self, viewer_id: Optional[str] = None) -> dict:
+        """Returns a serializeable snapshot of the current game state from a player's perspective."""
         reveal_all = self.room.stage == Stage.SHOWDOWN
         return {
             "stage": self.room.stage.value,
@@ -199,6 +239,7 @@ class GameEngine:
                     "chips": p.chips,
                     "bet": p.bet,
                     "status": p.status.value,
+                    # Hide opponents' cards unless showdown
                     "hand": list(p.hand) if (reveal_all or p.id == viewer_id) else [],
                     "ready": p.ready,
                     "seated": p.seated,
@@ -208,6 +249,7 @@ class GameEngine:
         }
 
     def legal_actions(self, player_id: str) -> dict:
+        """Returns a dictionary of legal actions and constraints for a player."""
         player = self._find_player(player_id)
         if player is None:
             return {}
@@ -273,6 +315,7 @@ class GameEngine:
                 player.has_acted = False
 
     def _round_complete(self) -> bool:
+        """Checks if the current betting round is complete."""
         for player in self.room.players:
             if not player.is_active():
                 continue
@@ -285,16 +328,19 @@ class GameEngine:
         return True
 
     def _hand_should_end(self) -> bool:
+        """Checks if only one player remains (others folded)."""
         active = [p for p in self.room.players if p.status in (PlayerStatus.PLAYING, PlayerStatus.ALLIN)]
         return len(active) <= 1
 
     def _no_players_can_act(self) -> bool:
+        """Checks if further action is impossible (e.g., all-ins)."""
         return all(
             p.status in (PlayerStatus.FOLDED, PlayerStatus.ALLIN)
             for p in self.room.players
         )
 
     def _advance_stage(self) -> None:
+        """Moves game to the next stage (Flop, Turn, River, Showdown)."""
         if self.room.stage == Stage.PREFLOP:
             self._burn_and_deal(3)
             self.room.stage = Stage.FLOP
@@ -312,13 +358,19 @@ class GameEngine:
         self._reset_round_state()
         self.room.current_actor_index = self._first_postflop_actor()
 
+        # Handle case where everyone is all-in immediately after stage change
+        # This will be caught by next process_action call or main loop, 
+        # but pure engine state update is sufficient here.
+
     def _burn_and_deal(self, count: int) -> None:
         if self.room.deck:
-            self.room.deck.pop()
+            self.room.deck.pop() # Burn
         for _ in range(count):
-            self.room.community_cards.append(self.room.deck.pop())
+            if self.room.deck:
+                self.room.community_cards.append(self.room.deck.pop())
 
     def _deal_remaining_community(self) -> None:
+        """Deals remaining cards if hand ends early (e.g. all-in showdown)."""
         while len(self.room.community_cards) < 5:
             if len(self.room.community_cards) == 0:
                 self._burn_and_deal(3)
@@ -326,6 +378,7 @@ class GameEngine:
                 self._burn_and_deal(1)
 
     def _reset_round_state(self) -> None:
+        """Resets bets and acting status for a new round."""
         self.room.current_bet = 0
         self.room.last_raise_size = self.room.big_blind
         for player in self.room.players:
@@ -334,6 +387,7 @@ class GameEngine:
                 player.has_acted = False
 
     def _first_postflop_actor(self) -> int:
+        """Finds the first player to act post-flop (SB or next active)."""
         return self._next_active_index(self._small_blind_index())
 
     def _small_blind_index(self) -> int:
@@ -348,12 +402,21 @@ class GameEngine:
                 player.has_acted = False
 
     def _resolve_showdown(self) -> None:
+        """
+        Determines the winner(s) and distributes the pot.
+        
+        Currently handles simple main pot distribution.
+        Split pots are supported.
+        Side pots are NOT fully supported yet (logic follows main pot).
+        """
         contenders = [
             p for p in self.room.players
             if p.status in (PlayerStatus.PLAYING, PlayerStatus.ALLIN)
         ]
         if not contenders:
             return
+        
+        # If everyone else folded
         if len(contenders) == 1:
             winner = contenders[0]
             winner.chips += self.room.pot
@@ -362,6 +425,7 @@ class GameEngine:
             self.room.pot = 0
             return
 
+        # Showdown evaluation
         best_score = None
         winners = []
         for player in contenders:
@@ -374,10 +438,12 @@ class GameEngine:
 
         if best_score:
             self.room.winning_hand = best_score[2]
+            
         if winners:
             share = self.room.pot // len(winners)
             remainder = self.room.pot % len(winners)
             for idx, winner in enumerate(winners):
+                # Distribute remainder to first players (simplification)
                 winner.chips += share + (1 if idx < remainder else 0)
             self.room.winners = [p.id for p in winners]
             self.room.pot = 0
