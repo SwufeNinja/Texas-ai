@@ -10,9 +10,9 @@ from .models import Player, Room, Stage
 
 def run_demo_hand(mode: str) -> None:
     players = [
-        Player(id="p1", name="Alice", is_ai=False, chips=200),
-        Player(id="p2", name="Bob", is_ai=False, chips=200),
-        Player(id="p3", name="Cleo", is_ai=True, chips=200),
+        Player(id="p1", name="Alice", is_ai=False, chips=200, ready=True),
+        Player(id="p2", name="Bob", is_ai=False, chips=200, ready=True),
+        Player(id="p3", name="Cleo", is_ai=True, chips=200, ready=True),
     ]
     room = Room(id="demo", players=players, small_blind=5, big_blind=10)
     engine = GameEngine(room)

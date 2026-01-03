@@ -27,7 +27,7 @@ class GameEngine:
             player.bet = 0
             player.has_acted = False
             player.hand = []
-            if player.chips > 0 and player.ready:
+            if player.seated and player.chips > 0 and player.ready:
                 player.status = PlayerStatus.PLAYING
             else:
                 player.status = PlayerStatus.WAITING
@@ -195,11 +195,13 @@ class GameEngine:
                 {
                     "id": p.id,
                     "name": p.name,
+                    "is_ai": p.is_ai,
                     "chips": p.chips,
                     "bet": p.bet,
                     "status": p.status.value,
                     "hand": list(p.hand) if (reveal_all or p.id == viewer_id) else [],
                     "ready": p.ready,
+                    "seated": p.seated,
                 }
                 for p in self.room.players
             ],

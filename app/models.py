@@ -31,6 +31,7 @@ class Player:
     bet: int = 0
     has_acted: bool = False
     ready: bool = False
+    seated: bool = True
 
     def can_act(self) -> bool:
         return self.status == PlayerStatus.PLAYING

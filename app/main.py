@@ -27,12 +27,17 @@ ROOM_ID = "default"
 room = Room(id=ROOM_ID, players=[], small_blind=5, big_blind=10)
 engine = GameEngine(room)
 seq_counter = 0
+MAX_SEATS = 8
 
 
 class AIJoinRequest(BaseModel):
     player_id: str
     name: str = "AI"
     chips: int = 200
+
+
+class AIRemoveRequest(BaseModel):
+    player_id: str
 
 
 def _find_player(player_id: str) -> Optional[Player]:
@@ -43,11 +48,12 @@ def _find_player(player_id: str) -> Optional[Player]:
 
 
 def _maybe_start_hand() -> None:
-    if len([p for p in room.players if p.chips > 0]) < 2:
+    if len([p for p in room.players if p.seated and p.chips > 0]) < 2:
         return
     active_ids = {pid for _, pid in manager.connections()}
     if any(
-        p.chips > 0
+        p.seated
+        and p.chips > 0
         and not p.ready
         and (p.is_ai or p.id in active_ids)
         for p in room.players
@@ -81,6 +87,21 @@ def _prune_disconnected_players() -> None:
             room.players.append(player)
         else:
             print(f"Pruning disconnected player: {player.id}")
+    _fill_open_seats()
+
+
+def _fill_open_seats() -> None:
+    seated = [p for p in room.players if p.seated]
+    open_seats = MAX_SEATS - len(seated)
+    if open_seats <= 0:
+        return
+    for player in room.players:
+        if open_seats <= 0:
+            break
+        if not player.seated and player.chips > 0:
+            player.seated = True
+            player.ready = False
+            open_seats -= 1
 
 
 def _next_seq() -> int:
@@ -155,15 +176,17 @@ async def _maybe_start_next_hand() -> None:
 
     if not room.awaiting_ready:
         for player in room.players:
-            if player.chips > 0:
+            if player.seated and player.chips > 0:
                 player.ready = player.is_ai
+            elif not player.seated:
+                player.ready = False
         room.awaiting_ready = True
         await _broadcast_system("ready_reset", {})
         await _broadcast_state()
         return
     if len([p for p in room.players if p.chips > 0]) < 2:
         return
-    if any(p.chips > 0 and not p.ready for p in room.players):
+    if any(p.seated and p.chips > 0 and not p.ready for p in room.players):
         return
     room.awaiting_ready = False
     engine.start_hand()
@@ -191,20 +214,39 @@ async def add_ai(request: AIJoinRequest) -> dict:
             return {"ok": False, "message": "player exists"}
         if _hand_in_progress():
             return {"ok": False, "message": "game already started"}
+        seated = len([p for p in room.players if p.seated]) < MAX_SEATS
         room.players.append(
             Player(
                 id=request.player_id,
                 name=request.name,
                 is_ai=True,
                 chips=request.chips,
-                ready=True,
+                ready=seated,
+                seated=seated,
             )
         )
+        _fill_open_seats()
         await _broadcast_system("player_joined", {"player_id": request.player_id})
         _maybe_start_hand()
         await _broadcast_state()
         await _run_ai_turns()
         await _maybe_start_next_hand()
+        return {"ok": True}
+
+
+@app.post("/ai/remove")
+async def remove_ai(request: AIRemoveRequest) -> dict:
+    async with engine_lock:
+        player = _find_player(request.player_id)
+        if player is None or not player.is_ai:
+            return {"ok": False, "message": "ai not found"}
+        if _hand_in_progress():
+            return {"ok": False, "message": "game already started"}
+        room.players = [p for p in room.players if p.id != request.player_id]
+        _fill_open_seats()
+        await _broadcast_system("player_left", {"player_id": request.player_id})
+        _maybe_start_hand()
+        await _broadcast_state()
         return {"ok": True}
 
 
@@ -225,6 +267,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             return
 
         async with engine_lock:
+            if not manager.connections():
+                _reset_game()
             if manager.is_connected(player_id):
                 await manager.send_json(
                     websocket,
@@ -248,12 +292,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 await websocket.close(code=1008)
                 return
             if player is None:
+                seated = len([p for p in room.players if p.seated]) < MAX_SEATS
                 room.players.append(
-                    Player(id=player_id, name=name, is_ai=False, chips=200)
+                    Player(id=player_id, name=name, is_ai=False, chips=200, seated=seated)
                 )
                 await _broadcast_system("player_joined", {"player_id": player_id})
             else:
                 player.name = name
+                if not player.seated:
+                    _fill_open_seats()
 
             await manager.connect(websocket, player_id, accept=False, allow_replace=False)
             await manager.send_json(
@@ -273,6 +320,19 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 async with engine_lock:
                     player = _find_player(player_id)
                     if player is None:
+                        continue
+                    if not player.seated:
+                        await manager.send_json(
+                            websocket,
+                            _envelope(
+                                "error",
+                                {
+                                    "code": "NOT_SEATED",
+                                    "message": "player not seated",
+                                    "details": {"player_id": player_id},
+                                },
+                            ),
+                        )
                         continue
                     player.ready = ready_value
                     await _broadcast_system(

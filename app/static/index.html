@@ -271,6 +271,21 @@
         color: var(--muted);
       }
 
+      .ai-remove {
+        margin-top: 8px;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--ink);
+        cursor: pointer;
+      }
+
+      .ai-remove:hover {
+        border-color: rgba(247, 201, 72, 0.6);
+      }
+
       .hint {
         font-size: 12px;
         color: var(--muted);
@@ -351,7 +366,7 @@
 
       .players-panel {
         display: grid;
-        grid-template-rows: auto 1fr auto 1fr;
+        grid-template-rows: auto 1fr auto 1fr auto 1fr;
         gap: 12px;
         max-height: 720px;
       }
@@ -440,6 +455,8 @@
       <section class="panel players-panel">
         <div class="title">Players</div>
         <div class="players" id="players"></div>
+        <div class="title" style="margin-top: 8px;">Waiting</div>
+        <div class="players" id="waitingPlayers"></div>
         <div class="title" style="margin-top: 18px;">Log</div>
         <div class="log" id="log"></div>
       </section>
@@ -476,6 +493,7 @@
       const communityCardsEl = document.getElementById("communityCards");
       const seatsEl = document.getElementById("seats");
       const playersEl = document.getElementById("players");
+      const waitingPlayersEl = document.getElementById("waitingPlayers");
       const logEl = document.getElementById("log");
       const raiseAmountEl = document.getElementById("raiseAmount");
       const actionHintEl = document.getElementById("actionHint");
@@ -571,6 +589,8 @@
 
       function renderPlayers(players, currentId) {
         playersEl.innerHTML = "";
+        waitingPlayersEl.innerHTML = "";
+        const canRemoveAi = !isHandInProgress(lastState);
         players.forEach((player) => {
           const row = document.createElement("div");
           const isCurrent = player.id === currentId;
@@ -594,7 +614,9 @@
 
           const statusLine = document.createElement("div");
           statusLine.className = "meta";
-          statusLine.textContent = `${readyText} | Status: ${player.status} | Bet: ${player.bet}`;
+          statusLine.textContent = player.seated
+            ? `${readyText} | Status: ${player.status} | Bet: ${player.bet}`
+            : `Spectating | Status: ${player.status}`;
 
           left.appendChild(nameLine);
           left.appendChild(handRow);
@@ -604,14 +626,26 @@
           const chipsLine = document.createElement("div");
           chipsLine.textContent = `${player.chips} chips`;
           right.appendChild(chipsLine);
+          if (player.is_ai && canRemoveAi) {
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "ai-remove";
+            removeBtn.textContent = "Remove AI";
+            removeBtn.dataset.aiId = player.id;
+            right.appendChild(removeBtn);
+          }
 
           row.appendChild(left);
           row.appendChild(right);
-          playersEl.appendChild(row);
+          if (player.seated) {
+            playersEl.appendChild(row);
+          } else {
+            waitingPlayersEl.appendChild(row);
+          }
         });
       }
 
       function renderSeats(players, currentId) {
+        const seatedPlayers = players.filter((player) => player.seated);
         const positions = [
           { top: "8%", left: "50%", transform: "translate(-50%, -50%)" },
           { top: "20%", left: "85%", transform: "translate(-50%, -50%)" },
@@ -623,7 +657,7 @@
           { top: "8%", left: "80%", transform: "translate(-50%, -50%)" },
         ];
         seatsEl.innerHTML = "";
-        players.slice(0, positions.length).forEach((player, index) => {
+        seatedPlayers.slice(0, positions.length).forEach((player, index) => {
           const seat = document.createElement("div");
           const isCurrent = player.id === currentId;
           const isActive = player.status === "PLAYING";
@@ -690,12 +724,26 @@
         return { symbol: "♠", isRed: false };
       }
 
+      function isHandInProgress(state) {
+        if (!state) {
+          return false;
+        }
+        if (state.stage && state.stage !== "PREFLOP") {
+          return true;
+        }
+        if ((state.pot || 0) > 0) {
+          return true;
+        }
+        return Array.isArray(state.community_cards) && state.community_cards.length > 0;
+      }
+
       function refreshButtons() {
         const buttons = document.querySelectorAll("[data-action]");
         const playerId = playerIdInput.value.trim();
         if (!lastState || !playerId) {
           buttons.forEach((btn) => (btn.disabled = true));
           readyBtn.classList.remove("ready-active");
+          readyBtn.disabled = true;
           actionHintEl.textContent = "";
           return;
         }
@@ -712,6 +760,7 @@
         } else {
           readyBtn.classList.remove("ready-active");
         }
+        readyBtn.disabled = !me || !me.seated;
         buttons.forEach((btn) => {
           const action = btn.dataset.action;
           let allowed = isMyTurn && canAct;
@@ -733,6 +782,9 @@
         }
 
         let turnLabel = "Waiting for ready";
+        if (me && !me.seated) {
+          turnLabel = "Spectating (waiting for a seat)";
+        }
         if (canAct) {
           turnLabel = isMyTurn ? "Your turn" : "Waiting for others";
         }
@@ -766,6 +818,8 @@
         const payload = await response.json();
         log(payload.ok ? `AI ${id} added` : `AI add failed: ${payload.message}`);
       });
+      playersEl.addEventListener("click", (event) => handleAiRemove(event));
+      waitingPlayersEl.addEventListener("click", (event) => handleAiRemove(event));
       function formatDetails(details) {
         const entries = Object.entries(details || {});
         if (!entries.length) {
@@ -775,6 +829,28 @@
           .map(([key, value]) => `<span>${key}: ${value}</span>`)
           .join(" · ");
         return `<span class="detail-line">${items}</span>`;
+      }
+
+      async function handleAiRemove(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const aiId = target.dataset.aiId;
+        if (!aiId) {
+          return;
+        }
+        if (isHandInProgress(lastState)) {
+          log("AI remove failed: game already started");
+          return;
+        }
+        const response = await fetch("/ai/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ player_id: aiId }),
+        });
+        const payload = await response.json();
+        log(payload.ok ? `AI ${aiId} removed` : `AI remove failed: ${payload.message}`);
       }
     </script>
   </body>
