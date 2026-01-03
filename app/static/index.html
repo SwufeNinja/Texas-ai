@@ -588,7 +588,7 @@
         </div>
         <div class="title" style="margin-top: 18px;">Log</div>
         <div class="log">
-          <div v-for="(entry, index) in logItems" :key="`log-${index}`" v-html="entry"></div>
+          <div v-for="(entry, index) in logItems" :key="`log-${index}`" v-text="entry"></div>
         </div>
       </section>
 

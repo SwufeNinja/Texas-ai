@@ -179,7 +179,14 @@ async def maybe_start_next_hand() -> None:
     if len([p for p in state.room.players if p.chips > 0]) < 2:
         return
 
-    if any(p.seated and p.chips > 0 and not p.ready for p in state.room.players):
+    active_ids = {pid for _, pid in state.manager.connections()}
+    if any(
+        p.seated
+        and p.chips > 0
+        and not p.ready
+        and (p.is_ai or p.id in active_ids)
+        for p in state.room.players
+    ):
         return
 
     state.room.awaiting_ready = False

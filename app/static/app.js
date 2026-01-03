@@ -233,7 +233,17 @@ createApp({
         return this.toCall > 0;
       }
       if (action === "raise") {
-        return this.toCall >= 0;
+        const amount = Number(this.raiseAmount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) {
+          return false;
+        }
+        if (this.maxRaise < this.minRaise) {
+          return false;
+        }
+        return amount >= this.minRaise && amount <= this.maxRaise;
+      }
+      if (action === "allin") {
+        return Boolean(this.me && this.me.chips > 0);
       }
       return true;
     },
@@ -298,10 +308,9 @@ createApp({
       if (!entries.length) {
         return "";
       }
-      const items = entries
-        .map(([key, value]) => `<span>${key}: ${value}</span>`)
+      return entries
+        .map(([key, value]) => `${key}: ${value}`)
         .join(" | ");
-      return `<span class="detail-line">${items}</span>`;
     },
     formatSystemMessage(data) {
       const event = data.event || "system";
