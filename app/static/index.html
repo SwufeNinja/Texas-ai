@@ -24,11 +24,11 @@
       :root {
         --bg-1: #0b1320;
         --bg-2: #101f2d;
-        --accent: #f7c948;
-        --accent-2: #ff6b6b;
+        --accent: #56f2d6;
+        --accent-2: #f7c948;
         --ink: #e6edf3;
         --muted: #91a4b7;
-        --panel: rgba(18, 30, 44, 0.9);
+        --panel: rgba(16, 26, 38, 0.92);
         --panel-edge: rgba(255, 255, 255, 0.08);
         --good: #3ddc97;
       }
@@ -41,13 +41,17 @@
         margin: 0;
         font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
         color: var(--ink);
-        background: radial-gradient(circle at top, #1a2b3b 0%, var(--bg-1) 45%, #090e18 100%);
+        background:
+          radial-gradient(circle at 30% 20%, rgba(86, 242, 214, 0.12), transparent 55%),
+          radial-gradient(circle at 80% 10%, rgba(247, 201, 72, 0.1), transparent 45%),
+          linear-gradient(160deg, #0a1220 0%, #0b1424 40%, #070c16 100%);
         min-height: 100vh;
       }
 
       .app {
         display: grid;
-        grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr) minmax(260px, 1fr);
+        grid-template-columns: minmax(280px, 320px) minmax(420px, 1fr) minmax(260px, 360px);
+        grid-template-rows: auto auto;
         gap: 24px;
         padding: 32px;
       }
@@ -62,7 +66,7 @@
       }
 
       .title {
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 700;
         letter-spacing: 0.02em;
       }
@@ -73,59 +77,167 @@
         gap: 8px;
         padding: 6px 12px;
         border-radius: 999px;
-        background: rgba(247, 201, 72, 0.15);
-        border: 1px solid rgba(247, 201, 72, 0.4);
+        background: rgba(86, 242, 214, 0.12);
+        border: 1px solid rgba(86, 242, 214, 0.4);
         color: var(--accent);
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.1em;
       }
 
+      .table-area {
+        position: relative;
+        display: grid;
+        gap: 16px;
+      }
+
       .table {
         position: relative;
-        padding: 24px;
-        border-radius: 28px;
+        min-height: 420px;
+        border-radius: 36px;
         border: 1px solid rgba(255, 255, 255, 0.08);
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(16, 31, 45, 0.8) 100%);
+        background:
+          radial-gradient(circle at 30% 20%, rgba(86, 242, 214, 0.12), transparent 60%),
+          radial-gradient(circle at 70% 80%, rgba(247, 201, 72, 0.1), transparent 55%),
+          linear-gradient(180deg, rgba(9, 16, 28, 0.9) 0%, rgba(11, 20, 36, 0.96) 100%);
         overflow: hidden;
+        box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
       }
 
       .table::before,
       .table::after {
         content: "";
         position: absolute;
-        inset: 10%;
-        border-radius: 28px;
+        inset: 12%;
+        border-radius: 30px;
         border: 1px dashed rgba(255, 255, 255, 0.08);
       }
 
       .table::after {
-        inset: 20%;
+        inset: 24%;
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
+      .table-meta {
+        display: grid;
+        grid-template-columns: repeat(3, auto);
+        gap: 16px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .table-meta span {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
       .community {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
-        margin-top: 16px;
       }
 
       .card {
         width: 56px;
         height: 78px;
         border-radius: 10px;
-        background: #f4f4f4;
-        color: #101f2d;
+        background: linear-gradient(160deg, #ffffff 0%, #f0f4f8 100%);
+        border: 1px solid rgba(10, 20, 35, 0.18);
+        color: #0b1320;
         font-weight: 700;
         display: grid;
         place-items: center;
         box-shadow: 0 8px 12px rgba(0, 0, 0, 0.4);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card .rank {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        font-size: 14px;
+      }
+
+      .card .suit {
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        font-size: 16px;
+      }
+
+      .card.red {
+        color: #d6364f;
       }
 
       .card.empty {
         background: rgba(255, 255, 255, 0.06);
         color: rgba(255, 255, 255, 0.4);
+        border: 1px dashed rgba(255, 255, 255, 0.18);
+      }
+
+      .card.mini {
+        width: 34px;
+        height: 46px;
+        border-radius: 8px;
+      }
+
+      .card.mini .rank {
+        font-size: 10px;
+        top: 4px;
+        left: 5px;
+      }
+
+      .card.mini .suit {
+        font-size: 12px;
+        bottom: 4px;
+        right: 5px;
+      }
+
+      .hand-cards {
+        display: flex;
+        gap: 6px;
+        margin: 6px 0;
+      }
+
+      .seats {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .seat {
+        position: absolute;
+        min-width: 140px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(10, 18, 30, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+        font-size: 12px;
+      }
+
+      .seat.current {
+        border-color: rgba(247, 201, 72, 0.6);
+        box-shadow: 0 0 0 1px rgba(247, 201, 72, 0.3);
+      }
+
+      .seat.active {
+        border-color: rgba(61, 220, 151, 0.45);
+      }
+
+      .seat .name {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .seat .meta {
+        color: var(--muted);
+        font-size: 11px;
       }
 
       .players {
@@ -168,7 +280,6 @@
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         gap: 10px;
-        margin-top: 18px;
       }
 
       button {
@@ -184,7 +295,7 @@
 
       button:hover {
         transform: translateY(-1px);
-        border-color: rgba(247, 201, 72, 0.6);
+        border-color: rgba(86, 242, 214, 0.6);
       }
 
       button:disabled {
@@ -213,6 +324,22 @@
         gap: 12px;
       }
 
+      .action-bar {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(180px, 240px) 1fr auto;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .action-bar .input {
+        max-width: 160px;
+      }
+
+      .action-bar .hint {
+        text-align: right;
+      }
+
       .log {
         max-height: 300px;
         overflow: auto;
@@ -220,6 +347,26 @@
         color: var(--muted);
         display: grid;
         gap: 6px;
+      }
+
+      .players-panel {
+        display: grid;
+        grid-template-rows: auto 1fr auto 1fr;
+        gap: 12px;
+        max-height: 720px;
+      }
+
+      .players-panel .players {
+        margin-top: 0;
+        max-height: 360px;
+        overflow: auto;
+        padding-right: 6px;
+      }
+
+      .players-panel .log {
+        max-height: 200px;
+        overflow: auto;
+        padding-right: 6px;
       }
 
       .detail-line {
@@ -231,6 +378,20 @@
       @media (max-width: 980px) {
         .app {
           grid-template-columns: 1fr;
+          grid-template-rows: auto;
+        }
+
+        .action-bar {
+          grid-template-columns: 1fr;
+          text-align: left;
+        }
+
+        .action-bar .hint {
+          text-align: left;
+        }
+
+        .table {
+          min-height: 320px;
         }
       }
     </style>
@@ -261,37 +422,41 @@
           </label>
           <button id="addAiBtn">Add AI</button>
         </div>
-        <div class="stack" style="margin-top: 18px;">
-          <label>
-            Raise Amount
-            <input class="input" id="raiseAmount" value="10" type="number" min="1" />
-          </label>
-          <div class="action-row">
-            <button data-action="fold">Fold</button>
-            <button data-action="check">Check</button>
-            <button data-action="call">Call</button>
-            <button data-action="raise">Raise</button>
-            <button data-action="allin">All-in</button>
-          </div>
-          <div class="hint" id="actionHint"></div>
-        </div>
       </section>
 
-      <section class="panel table">
+      <section class="table-area">
         <div class="title">Game State</div>
-        <div class="stack" style="margin-top: 16px;">
+        <div class="table-meta">
           <div>Stage: <span id="stage">-</span></div>
           <div>Pot: <span id="pot">0</span></div>
           <div>Current: <span id="currentPlayer">-</span></div>
         </div>
-        <div class="community" id="communityCards"></div>
+        <div class="table">
+          <div class="community" id="communityCards"></div>
+          <div class="seats" id="seats"></div>
+        </div>
       </section>
 
-      <section class="panel">
+      <section class="panel players-panel">
         <div class="title">Players</div>
         <div class="players" id="players"></div>
         <div class="title" style="margin-top: 18px;">Log</div>
         <div class="log" id="log"></div>
+      </section>
+
+      <section class="panel action-bar">
+        <label>
+          Raise Amount
+          <input class="input" id="raiseAmount" value="10" type="number" min="1" />
+        </label>
+        <div class="action-row">
+          <button data-action="fold">Fold</button>
+          <button data-action="check">Check</button>
+          <button data-action="call">Call</button>
+          <button data-action="raise">Raise</button>
+          <button data-action="allin">All-in</button>
+        </div>
+        <div class="hint" id="actionHint"></div>
       </section>
     </div>
 
@@ -309,6 +474,7 @@
       const potEl = document.getElementById("pot");
       const currentPlayerEl = document.getElementById("currentPlayer");
       const communityCardsEl = document.getElementById("communityCards");
+      const seatsEl = document.getElementById("seats");
       const playersEl = document.getElementById("players");
       const logEl = document.getElementById("log");
       const raiseAmountEl = document.getElementById("raiseAmount");
@@ -391,6 +557,7 @@
         currentPlayerEl.textContent = state.current_player_id || "-";
         renderCards(state.community_cards || []);
         renderPlayers(state.players || [], state.current_player_id);
+        renderSeats(state.players || [], state.current_player_id);
         refreshButtons();
       }
 
@@ -398,10 +565,7 @@
         communityCardsEl.innerHTML = "";
         const displayCards = cards.length ? cards : ["", "", "", "", ""];
         displayCards.forEach((card) => {
-          const el = document.createElement("div");
-          el.className = "card" + (card ? "" : " empty");
-          el.textContent = card || "--";
-          communityCardsEl.appendChild(el);
+          communityCardsEl.appendChild(createCardElement(card));
         });
       }
 
@@ -411,21 +575,119 @@
           const row = document.createElement("div");
           const isCurrent = player.id === currentId;
           const isActive = player.status === "PLAYING";
-          const handText =
-            player.hand && player.hand.length ? `Hand: ${player.hand.join(" ")}` : "";
           const readyText = player.ready ? "Ready" : "Not Ready";
           row.className = "player" + (isCurrent ? " current" : "") + (isActive ? " active" : "");
-          row.innerHTML = `
-            <div>
-              <div>${player.name} <span class="meta">(${player.id})</span></div>
-              <div class="meta">${handText ? `${handText} | ` : ""}${readyText} | Status: ${player.status} | Bet: ${player.bet}</div>
-            </div>
-            <div>
-              <div>${player.chips} chips</div>
-            </div>
-          `;
+          const left = document.createElement("div");
+          const nameLine = document.createElement("div");
+          const nameText = document.createElement("span");
+          nameText.textContent = player.name;
+          const metaText = document.createElement("span");
+          metaText.className = "meta";
+          metaText.textContent = `(${player.id})`;
+          nameLine.appendChild(nameText);
+          nameLine.appendChild(document.createTextNode(" "));
+          nameLine.appendChild(metaText);
+
+          const handRow = document.createElement("div");
+          handRow.className = "hand-cards";
+          renderHandCards(handRow, player.hand || []);
+
+          const statusLine = document.createElement("div");
+          statusLine.className = "meta";
+          statusLine.textContent = `${readyText} | Status: ${player.status} | Bet: ${player.bet}`;
+
+          left.appendChild(nameLine);
+          left.appendChild(handRow);
+          left.appendChild(statusLine);
+
+          const right = document.createElement("div");
+          const chipsLine = document.createElement("div");
+          chipsLine.textContent = `${player.chips} chips`;
+          right.appendChild(chipsLine);
+
+          row.appendChild(left);
+          row.appendChild(right);
           playersEl.appendChild(row);
         });
+      }
+
+      function renderSeats(players, currentId) {
+        const positions = [
+          { top: "8%", left: "50%", transform: "translate(-50%, -50%)" },
+          { top: "20%", left: "85%", transform: "translate(-50%, -50%)" },
+          { top: "70%", left: "88%", transform: "translate(-50%, -50%)" },
+          { top: "92%", left: "50%", transform: "translate(-50%, -50%)" },
+          { top: "70%", left: "12%", transform: "translate(-50%, -50%)" },
+          { top: "20%", left: "15%", transform: "translate(-50%, -50%)" },
+          { top: "8%", left: "20%", transform: "translate(-50%, -50%)" },
+          { top: "8%", left: "80%", transform: "translate(-50%, -50%)" },
+        ];
+        seatsEl.innerHTML = "";
+        players.slice(0, positions.length).forEach((player, index) => {
+          const seat = document.createElement("div");
+          const isCurrent = player.id === currentId;
+          const isActive = player.status === "PLAYING";
+          const pos = positions[index % positions.length];
+          seat.className = "seat" + (isCurrent ? " current" : "") + (isActive ? " active" : "");
+          seat.style.top = pos.top;
+          seat.style.left = pos.left;
+          seat.style.transform = pos.transform;
+          seat.innerHTML = `
+            <div class="name">${player.name}</div>
+            <div class="meta">(${player.id}) · ${player.chips} chips</div>
+            <div class="meta">${player.ready ? "Ready" : "Not Ready"} · ${player.status}</div>
+          `;
+          seatsEl.appendChild(seat);
+        });
+      }
+
+      function renderHandCards(container, cards) {
+        if (!cards.length) {
+          container.appendChild(createCardElement("", true));
+          container.appendChild(createCardElement("", true));
+          return;
+        }
+        cards.forEach((card) => {
+          container.appendChild(createCardElement(card, true));
+        });
+      }
+
+      function createCardElement(card, mini) {
+        const el = document.createElement("div");
+        const isEmpty = !card;
+        el.className = "card" + (mini ? " mini" : "") + (isEmpty ? " empty" : "");
+        if (isEmpty) {
+          el.textContent = "--";
+          return el;
+        }
+        const rank = card.slice(0, 1);
+        const suit = card.slice(1, 2);
+        const suitInfo = suitSymbol(suit);
+        if (suitInfo.isRed) {
+          el.classList.add("red");
+        }
+        const rankEl = document.createElement("span");
+        rankEl.className = "rank";
+        rankEl.textContent = rank;
+        const suitEl = document.createElement("span");
+        suitEl.className = "suit";
+        suitEl.textContent = suitInfo.symbol;
+        el.appendChild(rankEl);
+        el.appendChild(suitEl);
+        return el;
+      }
+
+      function suitSymbol(suit) {
+        if (suit === "h") {
+          return { symbol: "♥", isRed: true };
+        }
+        if (suit === "d") {
+          return { symbol: "♦", isRed: true };
+        }
+        if (suit === "c") {
+          return { symbol: "♣", isRed: false };
+        }
+        return { symbol: "♠", isRed: false };
       }
 
       function refreshButtons() {
