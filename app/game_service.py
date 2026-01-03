@@ -38,6 +38,8 @@ def _envelope(message_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
 def _hand_in_progress() -> bool:
     """Checks if a hand is currently active."""
+    if state.room.awaiting_ready:
+        return False
     if state.room.stage != Stage.PREFLOP:
         return True
     if state.room.community_cards or state.room.pot:
@@ -336,6 +338,20 @@ async def handle_player_ready(player_id: str, ready_value: bool, websocket: WebS
                 {
                     "code": "NOT_SEATED",
                     "message": "player not seated",
+                    "details": {"player_id": player_id},
+                },
+            ),
+        )
+        return
+
+    if _hand_in_progress() and not ready_value and not state.room.awaiting_ready:
+        await state.manager.send_json(
+            websocket,
+            _envelope(
+                "error",
+                {
+                    "code": "HAND_IN_PROGRESS",
+                    "message": "cannot unready during an active hand",
                     "details": {"player_id": player_id},
                 },
             ),

@@ -229,6 +229,7 @@ class GameEngine:
             "big_blind": self.room.big_blind,
             "last_raise_size": self.room.last_raise_size,
             "current_player_id": self._current_player().id,
+            "awaiting_ready": self.room.awaiting_ready,
             "winners": list(self.room.winners),
             "winning_hand": self.room.winning_hand,
             "players": [
