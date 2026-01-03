@@ -159,6 +159,11 @@
         color: var(--muted);
       }
 
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
       .action-row {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
@@ -268,6 +273,7 @@
             <button data-action="raise">Raise</button>
             <button data-action="allin">All-in</button>
           </div>
+          <div class="hint" id="actionHint"></div>
         </div>
       </section>
 
@@ -306,6 +312,7 @@
       const playersEl = document.getElementById("players");
       const logEl = document.getElementById("log");
       const raiseAmountEl = document.getElementById("raiseAmount");
+      const actionHintEl = document.getElementById("actionHint");
 
       let socket = null;
       let lastState = null;
@@ -427,11 +434,17 @@
         if (!lastState || !playerId) {
           buttons.forEach((btn) => (btn.disabled = true));
           readyBtn.classList.remove("ready-active");
+          actionHintEl.textContent = "";
           return;
         }
         const me = (lastState.players || []).find((p) => p.id === playerId);
         const isMyTurn = lastState.current_player_id === playerId;
         const toCall = me ? Math.max(0, lastState.current_bet - me.bet) : 0;
+        const bigBlind = Number(lastState.big_blind || 0);
+        const lastRaise = Number(lastState.last_raise_size || 0);
+        const minRaise = Math.max(bigBlind, lastRaise);
+        const maxRaise = me ? Math.max(0, me.chips - toCall) : 0;
+        const canAct = Boolean(me && me.status === "PLAYING" && me.ready);
         if (me && me.ready) {
           readyBtn.classList.add("ready-active");
         } else {
@@ -439,7 +452,7 @@
         }
         buttons.forEach((btn) => {
           const action = btn.dataset.action;
-          let allowed = isMyTurn;
+          let allowed = isMyTurn && canAct;
           if (action === "check") {
             allowed = allowed && toCall === 0;
           }
@@ -451,6 +464,19 @@
           }
           btn.disabled = !allowed;
         });
+
+        if (!me) {
+          actionHintEl.textContent = "Not seated.";
+          return;
+        }
+
+        let turnLabel = "Waiting for ready";
+        if (canAct) {
+          turnLabel = isMyTurn ? "Your turn" : "Waiting for others";
+        }
+        actionHintEl.textContent =
+          `${turnLabel} | To call: ${toCall} | ` +
+          `Min raise: ${minRaise} | Max raise: ${maxRaise}`;
       }
 
       connectBtn.addEventListener("click", connect);

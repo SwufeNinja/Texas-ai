@@ -186,6 +186,8 @@ class GameEngine:
             "pot": self.room.pot,
             "community_cards": list(self.room.community_cards),
             "current_bet": self.room.current_bet,
+            "big_blind": self.room.big_blind,
+            "last_raise_size": self.room.last_raise_size,
             "current_player_id": self._current_player().id,
             "winners": list(self.room.winners),
             "winning_hand": self.room.winning_hand,
