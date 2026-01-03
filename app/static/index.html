@@ -217,6 +217,12 @@
         gap: 6px;
       }
 
+      .detail-line {
+        color: rgba(247, 201, 72, 0.85);
+        font-size: 11px;
+        margin-left: 6px;
+      }
+
       @media (max-width: 980px) {
         .app {
           grid-template-columns: 1fr;
@@ -306,7 +312,7 @@
 
       function log(message) {
         const item = document.createElement("div");
-        item.textContent = message;
+        item.innerHTML = message;
         logEl.prepend(item);
       }
 
@@ -331,7 +337,6 @@
         }
         socket = new WebSocket(wsUrl);
         socket.addEventListener("open", () => {
-          updateConnectionUi(true);
           socket.send(
             JSON.stringify({
               type: "join",
@@ -344,8 +349,12 @@
           if (payload.type === "game_update") {
             lastState = payload.data;
             renderState(payload.data);
+            updateConnectionUi(true);
+          } else if (payload.type === "join_ok") {
+            updateConnectionUi(true);
           } else if (payload.type === "error") {
-            log(`Error: ${payload.data.message}`);
+            const details = formatDetails(payload.data.details);
+            log(`Error: ${payload.data.message} ${details}`);
           } else if (payload.type === "system") {
             log(`System: ${payload.data.event} ${payload.data.player_id || ""}`.trim());
           }
@@ -469,6 +478,16 @@
         const payload = await response.json();
         log(payload.ok ? `AI ${id} added` : `AI add failed: ${payload.message}`);
       });
+      function formatDetails(details) {
+        const entries = Object.entries(details || {});
+        if (!entries.length) {
+          return "";
+        }
+        const items = entries
+          .map(([key, value]) => `<span>${key}: ${value}</span>`)
+          .join(" · ");
+        return `<span class="detail-line">${items}</span>`;
+      }
     </script>
   </body>
 </html>

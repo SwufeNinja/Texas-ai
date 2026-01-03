@@ -45,7 +45,13 @@ def _find_player(player_id: str) -> Optional[Player]:
 def _maybe_start_hand() -> None:
     if len([p for p in room.players if p.chips > 0]) < 2:
         return
-    if any(p.chips > 0 and not p.ready for p in room.players):
+    active_ids = {pid for _, pid in manager.connections()}
+    if any(
+        p.chips > 0
+        and not p.ready
+        and (p.is_ai or p.id in active_ids)
+        for p in room.players
+    ):
         return
     if room.awaiting_ready:
         return
@@ -71,7 +77,7 @@ def _prune_disconnected_players() -> None:
     current_players = list(room.players)
     room.players.clear()
     for player in current_players:
-        if player.is_ai or player.id in active_ids:
+        if player.is_ai or player.id in active_ids or player.chips > 0:
             room.players.append(player)
         else:
             print(f"Pruning disconnected player: {player.id}")
@@ -219,21 +225,41 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             return
 
         async with engine_lock:
-            if _hand_in_progress():
+            if manager.is_connected(player_id):
+                await manager.send_json(
+                    websocket,
+                    _envelope(
+                        "error",
+                        {
+                            "code": "ALREADY_CONNECTED",
+                            "message": "player already connected",
+                            "details": {"player_id": player_id},
+                        },
+                    ),
+                )
+                await websocket.close(code=1008)
+                return
+            player = _find_player(player_id)
+            if player is None and _hand_in_progress():
                 await manager.send_json(
                     websocket,
                     _envelope("error", {"code": "GAME_STARTED", "message": "game already started"}),
                 )
                 await websocket.close(code=1008)
                 return
-            player = _find_player(player_id)
             if player is None:
                 room.players.append(
                     Player(id=player_id, name=name, is_ai=False, chips=200)
                 )
                 await _broadcast_system("player_joined", {"player_id": player_id})
+            else:
+                player.name = name
 
-            await manager.connect(websocket, player_id, accept=False)
+            await manager.connect(websocket, player_id, accept=False, allow_replace=False)
+            await manager.send_json(
+                websocket,
+                _envelope("join_ok", {"player_id": player_id}),
+            )
             _maybe_start_hand()
             await _broadcast_state()
             await _run_ai_turns()
@@ -266,9 +292,26 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             async with engine_lock:
                 ok, reason = engine.process_action(player_id, action, amount)
                 if not ok:
+                    details = engine.action_error_details(player_id, action, amount, reason)
+                    if reason == "unknown player":
+                        active_ids = [pid for _, pid in manager.connections()]
+                        details.update(
+                            {
+                                "connected_player_id": player_id,
+                                "active_player_ids": active_ids,
+                                "room_player_ids": [p.id for p in room.players],
+                            }
+                        )
                     await manager.send_json(
                         websocket,
-                        _envelope("error", {"code": "INVALID_ACTION", "message": reason}),
+                        _envelope(
+                            "error",
+                            {
+                                "code": "INVALID_ACTION",
+                                "message": reason,
+                                "details": details,
+                            },
+                        ),
                     )
                     continue
                 await _broadcast_state()

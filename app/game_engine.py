@@ -27,7 +27,7 @@ class GameEngine:
             player.bet = 0
             player.has_acted = False
             player.hand = []
-            if player.chips > 0:
+            if player.chips > 0 and player.ready:
                 player.status = PlayerStatus.PLAYING
             else:
                 player.status = PlayerStatus.WAITING
@@ -128,6 +128,56 @@ class GameEngine:
 
         self.room.current_actor_index = self._next_active_index(self.room.current_actor_index)
         return True, "action applied"
+
+    def action_error_details(
+        self,
+        player_id: str,
+        action: str,
+        amount: int,
+        reason: str,
+    ) -> dict:
+        player = self._find_player(player_id)
+        details: dict = {}
+        if player is None:
+            return {"player_id": player_id}
+
+        to_call = max(0, self.room.current_bet - player.bet)
+        min_raise = max(self.room.big_blind, self.room.last_raise_size)
+        max_raise = max(0, player.chips - to_call)
+
+        details = {
+            "player_id": player.id,
+            "player_chips": player.chips,
+            "player_bet": player.bet,
+            "current_bet": self.room.current_bet,
+        }
+
+        if reason == "raise below minimum":
+            details.update({"min_raise": min_raise, "raise_amount": amount})
+        elif reason == "cannot check when facing a bet":
+            details.update({"to_call": to_call})
+        elif reason == "insufficient chips for raise":
+            details.update(
+                {
+                    "to_call": to_call,
+                    "raise_amount": amount,
+                    "total_needed": to_call + max(0, amount),
+                    "max_raise": max_raise,
+                }
+            )
+        elif reason == "nothing to call":
+            details.update({"to_call": 0})
+        elif reason == "raise amount required":
+            details.update({"min_raise": min_raise})
+        elif reason == "no chips to go all-in":
+            details.update({})
+        elif reason == "not your turn":
+            details.update({"current_player_id": self._current_player().id})
+        elif reason == "player cannot act":
+            details.update({"status": player.status.value})
+        elif reason == "unknown action":
+            details.update({"action": action})
+        return details
 
     def state_snapshot(self, viewer_id: Optional[str] = None) -> dict:
         reveal_all = self.room.stage == Stage.SHOWDOWN

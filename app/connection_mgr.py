@@ -9,16 +9,23 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._connections: Dict[WebSocket, str] = {}
 
-    async def connect(self, websocket: WebSocket, player_id: str, accept: bool = True) -> None:
+    async def connect(
+        self,
+        websocket: WebSocket,
+        player_id: str,
+        accept: bool = True,
+        allow_replace: bool = False,
+    ) -> None:
         if accept:
             await websocket.accept()
-        for existing_ws, existing_player_id in list(self._connections.items()):
-            if existing_player_id == player_id and existing_ws is not websocket:
-                self._connections.pop(existing_ws, None)
-                try:
-                    await existing_ws.close(code=1000)
-                except RuntimeError:
-                    pass
+        if allow_replace:
+            for existing_ws, existing_player_id in list(self._connections.items()):
+                if existing_player_id == player_id and existing_ws is not websocket:
+                    self._connections.pop(existing_ws, None)
+                    try:
+                        await existing_ws.close(code=1000)
+                    except RuntimeError:
+                        pass
         self._connections[websocket] = player_id
 
     def disconnect(self, websocket: WebSocket) -> None:
@@ -39,3 +46,9 @@ class ConnectionManager:
 
     def connections(self) -> List[Tuple[WebSocket, str]]:
         return list(self._connections.items())
+
+    def is_connected(self, player_id: str) -> bool:
+        return player_id in self._connections.values()
+
+    def active_player_ids(self) -> List[str]:
+        return list(self._connections.values())
