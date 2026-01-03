@@ -547,7 +547,7 @@
             const details = formatDetails(payload.data.details);
             log(`Error: ${payload.data.message} ${details}`);
           } else if (payload.type === "system") {
-            log(`System: ${payload.data.event} ${payload.data.player_id || ""}`.trim());
+            log(formatSystemMessage(payload.data || {}));
           }
         });
         socket.addEventListener("close", () => {
@@ -838,6 +838,16 @@
           .map(([key, value]) => `<span>${key}: ${value}</span>`)
           .join(" · ");
         return `<span class="detail-line">${items}</span>`;
+      }
+
+      function formatSystemMessage(data) {
+        const event = data.event || "system";
+        const playerId = data.player_id ? ` ${data.player_id}` : "";
+        if (event === "player_joined") {
+          const status = data.waiting ? "waiting" : "seated";
+          return `System: ${event}${playerId} (${status})`;
+        }
+        return `System: ${event}${playerId}`;
       }
 
       async function handleAiRemove(event) {

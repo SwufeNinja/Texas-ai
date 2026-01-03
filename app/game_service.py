@@ -255,27 +255,25 @@ async def handle_player_connect(websocket: WebSocket, player_id: str, name: str)
         return
 
     player = _find_player(player_id)
+    hand_in_progress = _hand_in_progress()
     
-    # If game started and new player tries to join (not reconnect)
-    if player is None and _hand_in_progress():
-        await state.manager.send_json(
-            websocket,
-            _envelope("error", {"code": "GAME_STARTED", "message": "game already started"}),
-        )
-        await websocket.close(code=1008)
-        return
-
     if player is None:
-        seated = len([p for p in state.room.players if p.seated]) < MAX_SEATS
+        if hand_in_progress:
+            seated = False
+        else:
+            seated = len([p for p in state.room.players if p.seated]) < MAX_SEATS
         # Create new player
         state.room.players.append(
             Player(id=player_id, name=name, is_ai=False, chips=200, seated=seated)
         )
-        await broadcast_system("player_joined", {"player_id": player_id})
+        await broadcast_system(
+            "player_joined",
+            {"player_id": player_id, "seated": seated, "waiting": not seated},
+        )
     else:
         # Reconnecting player
         player.name = name
-        if not player.seated:
+        if not player.seated and not hand_in_progress:
             _fill_open_seats()
 
     await state.manager.connect(websocket, player_id, accept=False, allow_replace=False)
