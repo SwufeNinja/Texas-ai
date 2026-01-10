@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
   canAct: boolean;
+  canAllIn: boolean;
   toCall: number;
   minRaise: number;
   maxRaise: number;
@@ -26,7 +27,11 @@ const actionEnabled = (action: string) => {
   if (!props.canAct) return false;
   if (action === 'check') return props.toCall === 0;
   if (action === 'call') return props.toCall > 0;
-  if (action === 'raise') return props.toCall >= 0; 
+  if (action === 'raise') {
+    if (props.maxRaise < props.minRaise) return false;
+    return raiseAmount.value >= props.minRaise && raiseAmount.value <= props.maxRaise;
+  }
+  if (action === 'allin') return props.canAllIn;
   return true;
 };
 

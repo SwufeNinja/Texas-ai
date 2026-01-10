@@ -7,7 +7,7 @@ export interface Player {
   seated: boolean;
   ready: boolean;
   is_ai: boolean;
-  status: 'PLAYING' | 'FOLDED' | 'ALL_IN' | 'WAITING' | 'ELIMINATED' | 'SITTING_OUT'; 
+  status: 'PLAYING' | 'FOLDED' | 'ALLIN' | 'WAITING';
 }
 
 export interface GameState {

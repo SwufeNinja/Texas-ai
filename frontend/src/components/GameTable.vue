@@ -7,6 +7,7 @@ import PlayerSeat from './PlayerSeat.vue';
 const props = defineProps<{
   gameState: GameState | null; // Allow null for robustness
   currentUser?: Player | null; // For identifying 'current' player visually? No, that's current turn.
+  canRemoveAi: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -69,6 +70,7 @@ const getSeatStyle = (index: number) => {
           :key="`seat-${player.id}`"
           :player="player"
           :is-current="player.id === currentPlayerId"
+          :can-remove-ai="canRemoveAi"
           :style="getSeatStyle(index)"
           @remove="(id) => emit('removeAi', id)"
         />

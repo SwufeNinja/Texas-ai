@@ -6,6 +6,7 @@ import Card from './Card.vue';
 const props = defineProps<{
   player: Player;
   isCurrent?: boolean;
+  canRemoveAi: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -53,7 +54,7 @@ const readyLabel = computed(() => props.player.ready ? "Ready" : "Not Ready");
 
     <!-- AI Control -->
     <button 
-      v-if="player.is_ai" 
+      v-if="player.is_ai && canRemoveAi" 
       class="ai-remove-btn"
       @click.stop="$emit('remove', player.id)"
       title="Remove AI"

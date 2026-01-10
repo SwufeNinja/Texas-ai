@@ -4,6 +4,7 @@ import { useGameSocket } from './composables/useGameSocket';
 import { useGameState } from './composables/useGameState';
 import GameTable from './components/GameTable.vue';
 import ActionControls from './components/ActionControls.vue';
+import TableControl from './components/TableControl.vue';
 
 // State for inputs
 const playerId = ref('p1');
@@ -21,6 +22,9 @@ const {
   me, isMyTurn, toCall, minRaise, maxRaise, canAct, 
   handInProgress, seatedPlayers, waitingPlayers, actionHint 
 } = useGameState(lastState, playerId);
+
+const canAllIn = computed(() => Boolean(me.value && me.value.chips > 0 && canAct.value));
+const canRemoveAi = computed(() => !handInProgress.value);
 
 const connectionLabel = computed(() => connected.value ? "Connected" : "Disconnected");
 const connectBtnText = computed(() => connected.value ? "Disconnect" : "Connect");
@@ -52,54 +56,38 @@ const handleAddAi = () => {
 
 <template>
   <div class="app-container">
-    <!-- Left Panel: Controls -->
-    <aside class="panel control-panel">
-      <div class="title">Table Control</div>
-      <div class="badge" :class="{ connected }">{{ connectionLabel }}</div>
-      
-      <div class="stack">
-        <label>
-          Player ID
-          <input class="input" v-model="playerId" />
-        </label>
-        <label>
-          Name
-          <input class="input" v-model="playerName" />
-        </label>
-        <button @click="handleConnectToggle">{{ connectBtnText }}</button>
-        <button 
-          :class="{ 'ready-active': readyActive }" 
-          :disabled="readyDisabled"
-          @click="toggleReady(readyActive)"
-        >
-          {{ readyBtnText }}
-        </button>
-        
-        <hr class="divider"/>
-        
-        <label>
-          AI ID
-          <input class="input" v-model="aiId" />
-        </label>
-        <label>
-          AI Name
-          <input class="input" v-model="aiName" />
-        </label>
-        <button @click="handleAddAi">Add AI</button>
-      </div>
-    </aside>
+    <TableControl
+      v-model:player-id="playerId"
+      v-model:player-name="playerName"
+      v-model:ai-id="aiId"
+      v-model:ai-name="aiName"
+      :connected="connected"
+      :connection-label="connectionLabel"
+      :connect-btn-text="connectBtnText"
+      :ready-active="readyActive"
+      :ready-disabled="readyDisabled"
+      :ready-btn-text="readyBtnText"
+      :waiting-players="waitingPlayers"
+      :can-remove-ai="canRemoveAi"
+      @connect-toggle="handleConnectToggle"
+      @toggle-ready="toggleReady"
+      @add-ai="handleAddAi"
+      @remove-ai="removeAi"
+    />
 
     <!-- Center: Table -->
     <main class="game-area">
       <GameTable 
         :game-state="lastState" 
         :current-user="me"
+        :can-remove-ai="canRemoveAi"
         @remove-ai="removeAi"
       />
       
       <ActionControls 
         class="controls-overlay"
         :can-act="canAct"
+        :can-all-in="canAllIn"
         :to-call="toCall"
         :min-raise="minRaise"
         :max-raise="maxRaise"
@@ -119,13 +107,13 @@ const handleAddAi = () => {
           <div class="row-sub">
             Chips: {{ p.chips }} | {{ p.ready ? 'R' : 'NR' }}
           </div>
-        </div>
-        <div v-if="waitingPlayers.length" class="subsection-title">Waiting</div>
-        <div v-for="p in waitingPlayers" :key="p.id" class="list-item waiting">
-          <div class="row-main">
-            {{ p.name }} <small>({{ p.id }})</small>
-          </div>
-           <div class="row-sub">Spectating</div>
+          <button
+            v-if="p.is_ai && canRemoveAi"
+            class="ai-remove"
+            @click="removeAi(p.id)"
+          >
+            Remove AI
+          </button>
         </div>
       </div>
 
@@ -166,75 +154,6 @@ const handleAddAi = () => {
   overflow: hidden;
 }
 
-.title {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.badge {
-  display: inline-flex;
-  padding: 4px 12px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  margin-bottom: 16px;
-  align-self: flex-start;
-  border: 1px solid transparent;
-}
-.badge.connected {
-  background: rgba(86, 242, 214, 0.12);
-  color: var(--accent);
-  border-color: rgba(86, 242, 214, 0.3);
-}
-
-.stack {
-  display: grid;
-  gap: 12px;
-}
-
-.stack label {
-  font-size: 12px;
-  color: var(--muted);
-  display: block;
-}
-
-.input {
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--ink);
-  margin-top: 4px;
-}
-
-button {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--ink);
-  cursor: pointer;
-  transition: 0.2s;
-}
-button:hover { background: rgba(255, 255, 255, 0.1); }
-button.ready-active {
-  border-color: var(--good);
-  background: rgba(61, 220, 151, 0.15);
-  color: var(--good);
-}
-
-.divider {
-  border: 0;
-  border-top: 1px solid var(--panel-edge);
-  margin: 8px 0;
-  display: block;
-  width: 100%;
-}
-
 .info-panel {
   gap: 12px;
 }
@@ -270,6 +189,20 @@ button.ready-active {
 .list-item.active {
   border-left: 2px solid var(--good);
   background: linear-gradient(90deg, rgba(61, 220, 151, 0.05), transparent);
+}
+
+.ai-remove {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+  cursor: pointer;
+  transition: 0.2s;
+}
+.ai-remove:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .section-title {

@@ -61,7 +61,7 @@ export function useGameState(lastState: Ref<GameState | null>, playerId: Ref<str
     if (canAct.value) {
       turnLabel = isMyTurn.value ? "Your turn" : "Waiting for others";
     }
-    return `${turnLabel} | To call: ${toCall.value} | Min raise: ${minRaise.value}`;
+    return `${turnLabel} | To call: ${toCall.value} | Min raise: ${minRaise.value} | Max raise: ${maxRaise.value}`;
   });
 
   return {

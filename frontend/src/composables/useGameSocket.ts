@@ -27,6 +27,12 @@ export function useGameSocket() {
     return `System: ${event}${playerId}`;
   };
 
+  const formatDetails = (details: Record<string, unknown> | undefined) => {
+    const entries = Object.entries(details || {});
+    if (!entries.length) return "";
+    return entries.map(([key, value]) => `${key}: ${value}`).join(" | ");
+  };
+
   const connect = (playerId: string, playerName: string) => {
     if (!playerId.trim()) return;
     
@@ -53,7 +59,8 @@ export function useGameSocket() {
         } else if (payload.type === "join_ok") {
           connected.value = true;
         } else if (payload.type === "error") {
-          log(`Error: ${payload.data.message}`);
+          const details = formatDetails(payload.data?.details);
+          log(`Error: ${payload.data.message} ${details}`.trim());
         } else if (payload.type === "system") {
           log(formatSystemMessage(payload.data || {}));
         }
