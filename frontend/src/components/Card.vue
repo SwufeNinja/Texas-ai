@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import suitSvg from '../assets/suits.svg?raw';
 
 const props = defineProps<{
   card?: string; // e.g. "Ah", "Td"
@@ -32,7 +31,7 @@ const isEmpty = computed(() => !props.card);
     <template v-if="!isEmpty">
       <span class="rank">{{ rank }}</span>
       <svg class="suit-icon" viewBox="0 0 64 64">
-         <use :href="`/src/assets/suits.svg#${suitInfo.id}`"></use>
+         <use :href="`#${suitInfo.id}`"></use>
       </svg>
     </template>
     <template v-else>--</template>

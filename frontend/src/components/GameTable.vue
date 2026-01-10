@@ -27,14 +27,15 @@ const seatedPlayers = computed(() => {
 const currentPlayerId = computed(() => props.gameState?.current_player_id);
 
 const seatPositions = [
-  { top: "8%", left: "50%", transform: "translate(-50%, -50%)" },
-  { top: "20%", left: "85%", transform: "translate(-50%, -50%)" },
-  { top: "70%", left: "88%", transform: "translate(-50%, -50%)" },
-  { top: "92%", left: "50%", transform: "translate(-50%, -50%)" },
-  { top: "70%", left: "12%", transform: "translate(-50%, -50%)" },
-  { top: "20%", left: "15%", transform: "translate(-50%, -50%)" },
-  { top: "8%", left: "20%", transform: "translate(-50%, -50%)" },
-  { top: "8%", left: "80%", transform: "translate(-50%, -50%)" },
+  { top: "12%", left: "50%", transform: "translate(-50%, -50%)" },
+  { top: "12%", left: "86%", transform: "translate(-50%, -50%)" },
+  { top: "50%", left: "86%", transform: "translate(-50%, -50%)" },
+  { top: "84%", left: "86%", transform: "translate(-50%, -50%)" },
+  { top: "84%", left: "62%", transform: "translate(-50%, -50%)" },
+  { top: "84%", left: "38%", transform: "translate(-50%, -50%)" },
+  { top: "84%", left: "14%", transform: "translate(-50%, -50%)" },
+  { top: "50%", left: "14%", transform: "translate(-50%, -50%)" },
+  { top: "12%", left: "14%", transform: "translate(-50%, -50%)" },
 ];
 
 const getSeatStyle = (index: number) => {
@@ -107,7 +108,7 @@ const getSeatStyle = (index: number) => {
 
 .table {
   position: relative;
-  min-height: 480px; /* Bit taller than original 420px */
+  min-height: 560px;
   border-radius: 36px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:

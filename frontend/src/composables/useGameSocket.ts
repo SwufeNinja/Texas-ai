@@ -100,28 +100,41 @@ export function useGameSocket() {
   };
 
   const addAi = async (id: string, name: string) => {
+    const trimmedId = id.trim();
+    const trimmedName = name.trim() || "AI";
+    if (!trimmedId) return;
     try {
       const res = await fetch("/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: id, name }),
+        body: JSON.stringify({ player_id: trimmedId, name: trimmedName }),
       });
       const payload = await res.json();
-      log(payload.ok ? `AI ${id} added` : `AI add failed: ${payload.message}`);
+      if (!res.ok) {
+        log(`AI add failed: ${payload.message || res.statusText}`);
+        return;
+      }
+      log(payload.ok ? `AI ${trimmedId} added` : `AI add failed: ${payload.message}`);
     } catch (e) {
       log(`Error adding AI: ${e}`);
     }
   };
 
   const removeAi = async (id: string) => {
+    const trimmedId = id.trim();
+    if (!trimmedId) return;
     try {
       const res = await fetch("/ai/remove", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: id }),
+        body: JSON.stringify({ player_id: trimmedId }),
       });
       const payload = await res.json();
-      log(payload.ok ? `AI ${id} removed` : `AI remove failed: ${payload.message}`);
+      if (!res.ok) {
+        log(`AI remove failed: ${payload.message || res.statusText}`);
+        return;
+      }
+      log(payload.ok ? `AI ${trimmedId} removed` : `AI remove failed: ${payload.message}`);
     } catch (e) {
       log(`Error removing AI: ${e}`);
     }

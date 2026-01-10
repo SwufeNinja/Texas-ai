@@ -29,7 +29,7 @@ export function useGameState(lastState: Ref<GameState | null>, playerId: Ref<str
   });
 
   const canAct = computed(() => {
-    return Boolean(me.value && me.value.status === "PLAYING" && me.value.ready);
+    return Boolean(me.value && me.value.status === "PLAYING" && me.value.ready && isMyTurn.value);
   });
 
   const handInProgress = computed(() => {

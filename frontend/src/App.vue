@@ -5,6 +5,7 @@ import { useGameState } from './composables/useGameState';
 import GameTable from './components/GameTable.vue';
 import ActionControls from './components/ActionControls.vue';
 import TableControl from './components/TableControl.vue';
+import suitsSvg from './assets/suits.svg?raw';
 
 // State for inputs
 const playerId = ref('p1');
@@ -56,6 +57,7 @@ const handleAddAi = () => {
 
 <template>
   <div class="app-container">
+    <div class="suits-defs" v-html="suitsSvg" aria-hidden="true"></div>
     <TableControl
       v-model:player-id="playerId"
       v-model:player-name="playerName"
@@ -129,11 +131,19 @@ const handleAddAi = () => {
 .app-container {
   display: grid;
   grid-template-columns: 280px 1fr 280px;
-  grid-template-rows: 100vh;
-  gap: 24px;
-  padding: 24px;
+  grid-template-rows: 1fr;
+  gap: 16px;
+  padding: 16px;
   max-width: 1600px;
   margin: 0 auto;
+  overflow: hidden;
+  height: 100vh;
+}
+
+.suits-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
   overflow: hidden;
 }
 
@@ -149,9 +159,10 @@ const handleAddAi = () => {
 
 .game-area {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 16px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .info-panel {

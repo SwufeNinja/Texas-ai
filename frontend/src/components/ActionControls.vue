@@ -16,10 +16,18 @@ const emit = defineEmits<{
 
 const raiseAmount = ref(0);
 
-// Sync raiseAmount with minRaise when minRaise changes
-watch(() => props.minRaise, (newVal) => {
-  if (raiseAmount.value < newVal) {
-    raiseAmount.value = newVal;
+const showRaiseControl = computed(() => {
+  return props.canAct && props.maxRaise >= props.minRaise;
+});
+
+// Keep raiseAmount within valid bounds when limits change
+watch([() => props.minRaise, () => props.maxRaise], ([minRaise, maxRaise]) => {
+  if (raiseAmount.value < minRaise) {
+    raiseAmount.value = minRaise;
+    return;
+  }
+  if (maxRaise >= minRaise && raiseAmount.value > maxRaise) {
+    raiseAmount.value = maxRaise;
   }
 }, { immediate: true });
 
@@ -28,6 +36,7 @@ const actionEnabled = (action: string) => {
   if (action === 'check') return props.toCall === 0;
   if (action === 'call') return props.toCall > 0;
   if (action === 'raise') {
+    if (!Number.isFinite(raiseAmount.value)) return false;
     if (props.maxRaise < props.minRaise) return false;
     return raiseAmount.value >= props.minRaise && raiseAmount.value <= props.maxRaise;
   }
@@ -46,7 +55,7 @@ const send = (action: string) => {
 
 <template>
   <section class="action-bar panel">
-    <div class="raise-control" v-if="actionEnabled('raise')">
+    <div class="raise-control" v-if="showRaiseControl">
       <label>
         Raise To
         <input 

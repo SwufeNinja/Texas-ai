@@ -67,7 +67,7 @@ const updateValue = (e: Event) =>
             class="btn"
             :class="{ 'btn--ready': readyActive }"
             :disabled="readyDisabled"
-            @click="emit('toggle-ready', !readyActive)"
+            @click="emit('toggle-ready', readyActive)"
           >
             {{ readyBtnText }}
           </button>
@@ -95,7 +95,13 @@ const updateValue = (e: Event) =>
           />
         </label>
 
-        <button class="btn btn--primary" @click="emit('add-ai')">Add AI</button>
+        <button
+          class="btn btn--primary"
+          :disabled="!canRemoveAi"
+          @click="emit('add-ai')"
+        >
+          Add AI
+        </button>
       </div>
     </div>
 

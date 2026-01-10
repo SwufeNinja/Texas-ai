@@ -11,7 +11,7 @@ from .models import Room
 
 # Constants
 ROOM_ID = "default"
-MAX_SEATS = 8
+MAX_SEATS = 9
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
